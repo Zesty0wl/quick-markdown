@@ -138,7 +138,6 @@ final class PreviewViewController: NSViewController {
             font-family: \(bodyFont);
             font-size: 16px; line-height: 1.6;
             color: \(fg); background: \(bg);
-            max-width: 740px; margin: 0 auto;
             padding: 24px;
             -webkit-text-size-adjust: none;
         }
