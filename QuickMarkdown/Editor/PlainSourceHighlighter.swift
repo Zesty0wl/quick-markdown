@@ -1,36 +1,117 @@
 import AppKit
 
-/// Phase 3 plain-source view: applies a small set of regex-based colour passes
-/// to the backing store for raw Markdown viewing.
-///
-/// Stubbed for Phase 2 build; Phase 3 will fill in the full pattern set.
+/// Regex-based syntax highlighting for the plain-source view, styled to
+/// resemble VS Code's built-in Markdown grammar colouring. All colours
+/// use the system semantic palette so they adapt to light / dark mode.
 enum PlainSourceHighlighter {
 
+    // MARK: - Colour palette (VS Code Markdown–inspired)
+
+    /// Heading markers and text — blue / bold.
+    private static let headingColor = NSColor.systemBlue
+    /// Bold markers and text.
+    private static let boldColor = NSColor.systemOrange
+    /// Italic markers and text.
+    private static let italicColor = NSColor.systemYellow
+    /// Inline code and fenced code fence lines.
+    private static let codeColor = NSColor.systemGreen
+    /// Link text `[...]`.
+    private static let linkTextColor = NSColor.systemTeal
+    /// Link URL `(...)` and reference labels.
+    private static let linkURLColor = NSColor.systemCyan
+    /// Blockquotes `> ...`.
+    private static let quoteColor = NSColor.secondaryLabelColor
+    /// List bullets / numbers.
+    private static let listMarkerColor = NSColor.systemPurple
+    /// YAML front-matter fences and keys.
+    private static let frontMatterColor = NSColor.systemPink
+    /// HTML tags.
+    private static let htmlColor = NSColor.systemRed
+    /// Table pipes and horizontal rules.
+    private static let punctuationColor = NSColor.tertiaryLabelColor
+    /// Task-list checkboxes `[ ]` / `[x]`.
+    private static let taskColor = NSColor.systemIndigo
+    /// Image `!` prefix.
+    private static let imageColor = NSColor.systemMint
+    /// Strikethrough `~~`.
+    private static let strikethroughColor = NSColor.systemBrown
+
+    // MARK: - Pattern table
+
     private nonisolated(unsafe) static let patterns: [(NSRegularExpression, [NSAttributedString.Key: Any])] = {
-        func make(_ pattern: String,
+        let fontSize = MarkdownStyles.plainSourceFontSize
+        let mono = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        let monoBold = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .bold)
+        let monoItalic: NSFont = {
+            let desc = mono.fontDescriptor.withSymbolicTraits(.italic)
+            return NSFont(descriptor: desc, size: fontSize) ?? mono
+        }()
+
+        func rule(_ pattern: String,
                   options: NSRegularExpression.Options = [.anchorsMatchLines],
                   attrs: [NSAttributedString.Key: Any]) -> (NSRegularExpression, [NSAttributedString.Key: Any])? {
             guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else { return nil }
             return (regex, attrs)
         }
+
         var rules: [(NSRegularExpression, [NSAttributedString.Key: Any])] = []
-        if let r = make(#"^#{1,6}\s+.*$"#, attrs: [
-            .foregroundColor: NSColor.systemBlue,
-            .font: NSFont.monospacedSystemFont(ofSize: MarkdownStyles.plainSourceFontSize, weight: .bold),
-        ]) { rules.append(r) }
-        if let r = make(#"`[^`\n]+`"#, options: [], attrs: [
-            .foregroundColor: NSColor.systemOrange,
-        ]) { rules.append(r) }
-        if let r = make(#"\[[^\]]+\]\([^)]+\)"#, options: [], attrs: [
-            .foregroundColor: NSColor.systemTeal,
-            .underlineStyle: NSUnderlineStyle.single.rawValue,
-        ]) { rules.append(r) }
-        if let r = make(#"^>\s.*$"#, attrs: [
-            .foregroundColor: NSColor.secondaryLabelColor,
-        ]) { rules.append(r) }
-        if let r = make(#"^---+\s*$"#, attrs: [
-            .foregroundColor: NSColor.tertiaryLabelColor,
-        ]) { rules.append(r) }
+
+        // --- YAML front matter (opening/closing --- and content) ---
+        if let r = rule(#"^---\s*$"#, attrs: [.foregroundColor: frontMatterColor, .font: monoBold]) { rules.append(r) }
+        if let r = rule(#"^[a-zA-Z_][\w.-]*:"#, attrs: [.foregroundColor: frontMatterColor]) { rules.append(r) }
+
+        // --- Headings ---
+        if let r = rule(#"^#{1,6}\s+.*$"#, attrs: [.foregroundColor: headingColor, .font: monoBold]) { rules.append(r) }
+
+        // --- Fenced code blocks (the fence lines themselves) ---
+        if let r = rule(#"^`{3,}.*$"#, attrs: [.foregroundColor: codeColor]) { rules.append(r) }
+        if let r = rule(#"^~{3,}.*$"#, attrs: [.foregroundColor: codeColor]) { rules.append(r) }
+
+        // --- Inline code ---
+        if let r = rule(#"`[^`\n]+`"#, options: [], attrs: [.foregroundColor: codeColor]) { rules.append(r) }
+
+        // --- Bold **text** and __text__ ---
+        if let r = rule(#"\*\*[^*\n]+\*\*"#, options: [], attrs: [.foregroundColor: boldColor, .font: monoBold]) { rules.append(r) }
+        if let r = rule(#"__[^_\n]+__"#, options: [], attrs: [.foregroundColor: boldColor, .font: monoBold]) { rules.append(r) }
+
+        // --- Italic *text* and _text_ ---
+        if let r = rule(#"(?<!\*)\*(?!\*)[^*\n]+\*(?!\*)"#, options: [], attrs: [.foregroundColor: italicColor, .font: monoItalic]) { rules.append(r) }
+        if let r = rule(#"(?<!_)_(?!_)[^_\n]+_(?!_)"#, options: [], attrs: [.foregroundColor: italicColor, .font: monoItalic]) { rules.append(r) }
+
+        // --- Strikethrough ~~text~~ ---
+        if let r = rule(#"~~[^~\n]+~~"#, options: [], attrs: [.foregroundColor: strikethroughColor, .strikethroughStyle: NSUnderlineStyle.single.rawValue]) { rules.append(r) }
+
+        // --- Images ![alt](url) — highlight the `!` prefix ---
+        if let r = rule(#"!\[[^\]]*\]\([^)]+\)"#, options: [], attrs: [.foregroundColor: imageColor]) { rules.append(r) }
+
+        // --- Links [text](url) ---
+        if let r = rule(#"\[[^\]]+\]"#, options: [], attrs: [.foregroundColor: linkTextColor]) { rules.append(r) }
+        if let r = rule(#"\]\([^)]+\)"#, options: [], attrs: [.foregroundColor: linkURLColor]) { rules.append(r) }
+
+        // --- Reference-style links [text][ref] and definitions [ref]: url ---
+        if let r = rule(#"^\[[^\]]+\]:\s+.*$"#, attrs: [.foregroundColor: linkURLColor]) { rules.append(r) }
+
+        // --- Blockquotes ---
+        if let r = rule(#"^>\s.*$"#, attrs: [.foregroundColor: quoteColor, .font: monoItalic]) { rules.append(r) }
+
+        // --- List markers (-, *, +, 1., 2.) ---
+        if let r = rule(#"^(\s*)([-*+]|\d+\.)\s"#, attrs: [.foregroundColor: listMarkerColor]) { rules.append(r) }
+
+        // --- Task list checkboxes ---
+        if let r = rule(#"\[[ xX]\]"#, options: [], attrs: [.foregroundColor: taskColor, .font: monoBold]) { rules.append(r) }
+
+        // --- Horizontal rules ---
+        if let r = rule(#"^(\*{3,}|-{3,}|_{3,})\s*$"#, attrs: [.foregroundColor: punctuationColor]) { rules.append(r) }
+
+        // --- Table pipes ---
+        if let r = rule(#"\|"#, options: [], attrs: [.foregroundColor: punctuationColor]) { rules.append(r) }
+
+        // --- HTML tags ---
+        if let r = rule(#"</?[a-zA-Z][^>]*>"#, options: [], attrs: [.foregroundColor: htmlColor]) { rules.append(r) }
+
+        // --- Docs/Learn directives :::type ::: ---
+        if let r = rule(#"^:::.*$"#, attrs: [.foregroundColor: frontMatterColor]) { rules.append(r) }
+
         return rules
     }()
 

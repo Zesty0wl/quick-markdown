@@ -147,13 +147,9 @@ final class MarkdownTextStorage: NSTextStorage {
     // MARK: - Plain source styling (Phase 3)
 
     private func applyPlainSourceAttributes(source: String, fullRange: NSRange) {
-        let mono = MarkdownStyles.monospacedFont(size: MarkdownStyles.plainSourceFontSize)
-        backing.setAttributes([
-            .font: mono,
-            .foregroundColor: MarkdownStyles.foreground,
-        ], range: fullRange)
+        backing.setAttributes(MarkdownStyles.plainSourceAttributes, range: fullRange)
 
-        // Regex pass for colourisation (Phase 3 task 3.2).
+        // Regex pass for colourisation.
         PlainSourceHighlighter.apply(to: backing, source: source)
     }
 
