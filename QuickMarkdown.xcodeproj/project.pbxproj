@@ -278,6 +278,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = QuickMarkdown/QuickMarkdown.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 8352865GK4;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = QuickMarkdown/Info.plist;
@@ -287,6 +288,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neiljohn.quickmarkdown;
 				PRODUCT_MODULE_NAME = QuickMarkdown;
 				PRODUCT_NAME = "Quick Markdown";
@@ -374,6 +376,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = QuickMarkdown/QuickMarkdown.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 8352865GK4;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = QuickMarkdown/Info.plist;
@@ -383,6 +386,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neiljohn.quickmarkdown;
 				PRODUCT_MODULE_NAME = QuickMarkdown;
 				PRODUCT_NAME = "Quick Markdown";

@@ -46,6 +46,9 @@ enum MarkdownStyles {
     static let blockquoteAccent: NSColor = .controlAccentColor
     static var blockquoteText: NSColor { ReadingPreferences.shared.theme.blockquoteText }
     static var linkColor: NSColor { ReadingPreferences.shared.theme.linkColor }
+    static var tableBorder: NSColor { ReadingPreferences.shared.theme.tableBorder }
+    static var tableHeaderBackground: NSColor { ReadingPreferences.shared.theme.tableHeaderBackground }
+    static var tableStripe: NSColor { ReadingPreferences.shared.theme.tableStripe }
 
     // MARK: - Fonts
 

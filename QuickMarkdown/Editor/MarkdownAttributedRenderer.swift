@@ -587,6 +587,7 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
         nsTable.numberOfColumns = columnCount
         nsTable.collapsesBorders = true
         nsTable.hidesEmptyCells = false
+        nsTable.layoutAlgorithm = .fixedLayoutAlgorithm
 
         let alignments = table.columnAlignments
         let result = NSMutableAttributedString()
@@ -732,15 +733,24 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
             startingColumn: col,
             columnSpan: colSpan
         )
-        // Thin borders + a little padding so Word renders a recognisable
-        // table even before the user applies a Table Style.
-        block.setBorderColor(MarkdownStyles.dimmedMarker)
+        // GitHub-style borders: subtle 1pt lines.
+        block.setBorderColor(MarkdownStyles.tableBorder)
         for edge in [NSRectEdge.minX, .maxX, .minY, .maxY] {
             block.setWidth(0.5, type: .absoluteValueType, for: .border, edge: edge)
-            block.setWidth(4, type: .absoluteValueType, for: .padding, edge: edge)
+            block.setWidth(8, type: .absoluteValueType, for: .padding, edge: edge)
         }
+        // Extra horizontal padding for breathing room.
+        block.setWidth(12, type: .absoluteValueType, for: .padding, edge: .minX)
+        block.setWidth(12, type: .absoluteValueType, for: .padding, edge: .maxX)
+
         if isHeader {
-            block.backgroundColor = MarkdownStyles.codeBackground
+            block.backgroundColor = MarkdownStyles.tableHeaderBackground
+        } else {
+            // Zebra striping on odd body rows (row 0 is header, so body
+            // rows start at 1 — stripe even-numbered body rows = odd raw row index).
+            if row % 2 == 0 {
+                block.backgroundColor = MarkdownStyles.tableStripe
+            }
         }
         return block
     }

@@ -103,6 +103,54 @@ enum ReadingTheme: String, CaseIterable, Sendable {
 
     var blockquoteText: NSColor { secondaryForeground }
 
+    /// Subtle border for table cells — lighter than dimmedMarker.
+    var tableBorder: NSColor {
+        switch self {
+        case .system:
+            return NSColor(name: nil) { appearance in
+                appearance.bestMatch(from: [.darkAqua, .vibrantDark]) == .darkAqua
+                    ? NSColor.white.withAlphaComponent(0.12)
+                    : NSColor.black.withAlphaComponent(0.12)
+            }
+        default:
+            return prefersDark
+                ? NSColor.white.withAlphaComponent(0.15)
+                : NSColor.black.withAlphaComponent(0.12)
+        }
+    }
+
+    /// Header cell background — slightly stronger than codeBackground.
+    var tableHeaderBackground: NSColor {
+        switch self {
+        case .system:
+            return NSColor(name: nil) { appearance in
+                appearance.bestMatch(from: [.darkAqua, .vibrantDark]) == .darkAqua
+                    ? NSColor.white.withAlphaComponent(0.10)
+                    : NSColor.black.withAlphaComponent(0.06)
+            }
+        default:
+            return prefersDark
+                ? NSColor.white.withAlphaComponent(0.12)
+                : NSColor.black.withAlphaComponent(0.06)
+        }
+    }
+
+    /// Alternating row stripe for table body rows.
+    var tableStripe: NSColor {
+        switch self {
+        case .system:
+            return NSColor(name: nil) { appearance in
+                appearance.bestMatch(from: [.darkAqua, .vibrantDark]) == .darkAqua
+                    ? NSColor.white.withAlphaComponent(0.04)
+                    : NSColor.black.withAlphaComponent(0.02)
+            }
+        default:
+            return prefersDark
+                ? NSColor.white.withAlphaComponent(0.05)
+                : NSColor.black.withAlphaComponent(0.025)
+        }
+    }
+
     var linkColor: NSColor {
         switch self {
         case .system:    return .linkColor
