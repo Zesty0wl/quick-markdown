@@ -587,7 +587,7 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
         nsTable.numberOfColumns = columnCount
         nsTable.collapsesBorders = true
         nsTable.hidesEmptyCells = false
-        nsTable.layoutAlgorithm = .fixedLayoutAlgorithm
+        nsTable.layoutAlgorithm = .automaticLayoutAlgorithm
 
         let alignments = table.columnAlignments
         let result = NSMutableAttributedString()
@@ -733,15 +733,17 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
             startingColumn: col,
             columnSpan: colSpan
         )
-        // GitHub-style borders: subtle 1pt lines.
+        // GitHub-style borders: 1pt solid lines with visible color.
         block.setBorderColor(MarkdownStyles.tableBorder)
         for edge in [NSRectEdge.minX, .maxX, .minY, .maxY] {
-            block.setWidth(0.5, type: .absoluteValueType, for: .border, edge: edge)
-            block.setWidth(8, type: .absoluteValueType, for: .padding, edge: edge)
+            block.setWidth(1, type: .absoluteValueType, for: .border, edge: edge)
+            block.setWidth(6, type: .absoluteValueType, for: .padding, edge: edge)
         }
-        // Extra horizontal padding for breathing room.
-        block.setWidth(12, type: .absoluteValueType, for: .padding, edge: .minX)
-        block.setWidth(12, type: .absoluteValueType, for: .padding, edge: .maxX)
+        // Generous horizontal padding matching GitHub.
+        block.setWidth(13, type: .absoluteValueType, for: .padding, edge: .minX)
+        block.setWidth(13, type: .absoluteValueType, for: .padding, edge: .maxX)
+        block.setWidth(8, type: .absoluteValueType, for: .padding, edge: .minY)
+        block.setWidth(8, type: .absoluteValueType, for: .padding, edge: .maxY)
 
         if isHeader {
             block.backgroundColor = MarkdownStyles.tableHeaderBackground

@@ -103,35 +103,39 @@ enum ReadingTheme: String, CaseIterable, Sendable {
 
     var blockquoteText: NSColor { secondaryForeground }
 
-    /// Subtle border for table cells — lighter than dimmedMarker.
+    /// Border color for table cells — matches GitHub's #d0d7de.
     var tableBorder: NSColor {
         switch self {
         case .system:
             return NSColor(name: nil) { appearance in
                 appearance.bestMatch(from: [.darkAqua, .vibrantDark]) == .darkAqua
-                    ? NSColor.white.withAlphaComponent(0.12)
-                    : NSColor.black.withAlphaComponent(0.12)
+                    ? NSColor.white.withAlphaComponent(0.25)
+                    : NSColor(srgbRed: 0.816, green: 0.843, blue: 0.871, alpha: 1)
             }
+        case .light:
+            return NSColor(srgbRed: 0.816, green: 0.843, blue: 0.871, alpha: 1)
+        case .sepia:
+            return NSColor(srgbRed: 0.75, green: 0.68, blue: 0.55, alpha: 1)
         default:
-            return prefersDark
-                ? NSColor.white.withAlphaComponent(0.15)
-                : NSColor.black.withAlphaComponent(0.12)
+            return NSColor.white.withAlphaComponent(0.25)
         }
     }
 
-    /// Header cell background — slightly stronger than codeBackground.
+    /// Header cell background — matches GitHub's #f6f8fa.
     var tableHeaderBackground: NSColor {
         switch self {
         case .system:
             return NSColor(name: nil) { appearance in
                 appearance.bestMatch(from: [.darkAqua, .vibrantDark]) == .darkAqua
-                    ? NSColor.white.withAlphaComponent(0.10)
-                    : NSColor.black.withAlphaComponent(0.06)
+                    ? NSColor.white.withAlphaComponent(0.08)
+                    : NSColor(srgbRed: 0.965, green: 0.973, blue: 0.980, alpha: 1)
             }
+        case .light:
+            return NSColor(srgbRed: 0.965, green: 0.973, blue: 0.980, alpha: 1)
+        case .sepia:
+            return NSColor(srgbRed: 0.94, green: 0.90, blue: 0.80, alpha: 1)
         default:
-            return prefersDark
-                ? NSColor.white.withAlphaComponent(0.12)
-                : NSColor.black.withAlphaComponent(0.06)
+            return NSColor.white.withAlphaComponent(0.08)
         }
     }
 
@@ -142,12 +146,14 @@ enum ReadingTheme: String, CaseIterable, Sendable {
             return NSColor(name: nil) { appearance in
                 appearance.bestMatch(from: [.darkAqua, .vibrantDark]) == .darkAqua
                     ? NSColor.white.withAlphaComponent(0.04)
-                    : NSColor.black.withAlphaComponent(0.02)
+                    : NSColor(srgbRed: 0.965, green: 0.973, blue: 0.980, alpha: 1)
             }
+        case .light:
+            return NSColor(srgbRed: 0.965, green: 0.973, blue: 0.980, alpha: 1)
+        case .sepia:
+            return NSColor(srgbRed: 0.96, green: 0.93, blue: 0.84, alpha: 1)
         default:
-            return prefersDark
-                ? NSColor.white.withAlphaComponent(0.05)
-                : NSColor.black.withAlphaComponent(0.025)
+            return NSColor.white.withAlphaComponent(0.04)
         }
     }
 
