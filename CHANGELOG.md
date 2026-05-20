@@ -10,6 +10,8 @@ https://semver.org/spec/v2.0.0.html
 
 ## Unreleased
 
+## 1.0.2 - 2026-05-20
+
 ### Added
 
 - In-app update notifier: on launch (once per 24 hours) and via the new
@@ -19,7 +21,7 @@ https://semver.org/spec/v2.0.0.html
 
 ### Changed
 
-- Bumped `MARKETING_VERSION` to 1.0.1 to match the shipped release.
+- Bumped `MARKETING_VERSION` to 1.0.2 and `CURRENT_PROJECT_VERSION` to 3.
 
 ## 1.0.1 - 2026-05-20
 
