@@ -61,3 +61,8 @@ fastlane/test_output
 *.dmg
 *.dmg.sha256
 
+# Dedicated releases folder: ignore everything inside except the README/.gitkeep
+releases/*
+!releases/README.md
+!releases/.gitkeep
+

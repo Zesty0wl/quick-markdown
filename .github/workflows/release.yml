@@ -14,7 +14,7 @@ on:
       artifact_path:
         description: "Path to signed/notarized artifact in repo"
         required: true
-        default: "./Quick Markdown-1.0.1.pkg"
+        default: "releases/Quick Markdown-1.0.1.pkg"
         type: string
       prerelease:
         description: "Mark as pre-release"
