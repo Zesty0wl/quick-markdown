@@ -24,7 +24,7 @@ final class MarkdownTextStorage: NSTextStorage {
     // MARK: - Public knobs
 
     /// Current display mode. Changing this triggers a full restyle.
-    var displayMode: DisplayMode = .livePreview {
+    var displayMode: DisplayMode = .plainSource {
         didSet {
             guard displayMode != oldValue else { return }
             forceRestyle()
