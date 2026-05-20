@@ -271,7 +271,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
             }
             preview.view.isHidden = false
             editor.view.isHidden = true
-            window?.makeFirstResponder(preview.textView)
+            window?.makeFirstResponder(preview.view)
         case .source:
             editor.view.isHidden = false
             preview.view.isHidden = true

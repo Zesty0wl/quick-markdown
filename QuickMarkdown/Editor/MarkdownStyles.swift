@@ -141,3 +141,21 @@ enum MarkdownStyles {
         ]
     }
 }
+
+// MARK: - NSColor → CSS hex
+
+extension NSColor {
+    /// Returns `#rrggbb` or `#rrggbbaa` CSS hex string.
+    var cssHex: String {
+        let c = usingColorSpace(.sRGB) ?? self
+        let r = Int(round(c.redComponent * 255))
+        let g = Int(round(c.greenComponent * 255))
+        let b = Int(round(c.blueComponent * 255))
+        let a = c.alphaComponent
+        if a >= 0.999 {
+            return String(format: "#%02x%02x%02x", r, g, b)
+        }
+        let ai = Int(round(a * 255))
+        return String(format: "#%02x%02x%02x%02x", r, g, b, ai)
+    }
+}

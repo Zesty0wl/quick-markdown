@@ -58,6 +58,14 @@ struct HTMLRenderer: MarkupVisitor {
         return Self.wrapInDocument(body: body, bodyCSS: renderer.bodyCSS)
     }
 
+    /// Render just the inner-body HTML (no `<html>`/`<head>` wrapper).
+    /// Used by `PreviewViewController` which supplies its own themed wrapper.
+    static func renderBody(_ markdown: String, baseURL: URL? = nil) -> String {
+        let document = Document(parsing: markdown)
+        var renderer = HTMLRenderer(baseURL: baseURL)
+        return renderer.visit(document)
+    }
+
     private static func wrapInDocument(body: String, bodyCSS: String) -> String {
         """
         <!DOCTYPE html>
