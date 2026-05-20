@@ -260,6 +260,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
         applyWindowMode(currentMode == .preview ? .source : .preview)
     }
 
+    /// Action wired to the menu items inside the toolbar item's overflow
+    /// menuFormRepresentation. `sender.tag` is `0` for Preview, `1` for Source.
+    @objc fileprivate func selectWindowMode(_ sender: NSMenuItem) {
+        applyWindowMode(sender.tag == 0 ? .preview : .source)
+    }
+
     private func applyWindowMode(_ mode: WindowMode) {
         currentMode = mode
         modeSegmented.selectedSegment = (mode == .preview) ? 0 : 1
@@ -730,10 +736,37 @@ extension DocumentWindowController: NSToolbarDelegate {
             return item
         case Self.modeItemIdentifier:
             let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-            item.label = "Mode"
+            item.label = "View"
             item.paletteLabel = "Display Mode"
             item.toolTip = "Switch between Preview and Source (⌘⌥P)"
             item.view = modeSegmented
+
+            // Overflow-menu fallback: when the toolbar collapses into the
+            // chevron, AppKit renders this NSMenuItem (with its submenu)
+            // instead of the segmented control. The two children let the
+            // user pick Preview or Source directly from the chevron.
+            let submenu = NSMenu(title: "View")
+            let previewItem = NSMenuItem(
+                title: "Preview",
+                action: #selector(selectWindowMode(_:)),
+                keyEquivalent: ""
+            )
+            previewItem.tag = 0
+            previewItem.target = self
+            let sourceItem = NSMenuItem(
+                title: "Source",
+                action: #selector(selectWindowMode(_:)),
+                keyEquivalent: ""
+            )
+            sourceItem.tag = 1
+            sourceItem.target = self
+            submenu.addItem(previewItem)
+            submenu.addItem(sourceItem)
+            submenu.autoenablesItems = true
+
+            let menuRep = NSMenuItem(title: "View", action: nil, keyEquivalent: "")
+            menuRep.submenu = submenu
+            item.menuFormRepresentation = menuRep
             return item
         default:
             return nil
@@ -1049,6 +1082,11 @@ extension DocumentWindowController: NSMenuItemValidation {
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
+        case #selector(selectWindowMode(_:)):
+            menuItem.state = (menuItem.tag == 0 && currentMode == .preview) ||
+                             (menuItem.tag == 1 && currentMode == .source)
+                             ? .on : .off
+            return true
         case #selector(startSpeaking(_:)):
             // Start is always available when there's something to read; the
             // action will beep if it turns out to be empty.
