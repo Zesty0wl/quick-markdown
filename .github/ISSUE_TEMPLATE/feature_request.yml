@@ -1,0 +1,46 @@
+name: Feature request
+description: Propose an improvement aligned with Quick Markdown's scope
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please review the repository scope before submitting larger requests.
+        Quick Markdown is intentionally focused on one markdown file at a time.
+  - type: input
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user problem does this solve?
+      placeholder: "I cannot quickly ..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe behavior from user perspective.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds or other ideas.
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope fit
+      description: Does this align with single-file markdown editing and sharing?
+      options:
+        - Yes
+        - Not sure
+        - No
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context

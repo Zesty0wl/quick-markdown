@@ -102,3 +102,6 @@ targets:
     dependencies:
       - package: swift-markdown
         product: Markdown
+    # Generate a SHARED scheme so contributors (and CI) get a working
+    # QuickMarkdown.xcscheme without re-running xcodegen.
+    scheme: {}

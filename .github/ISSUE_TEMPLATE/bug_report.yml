@@ -1,0 +1,69 @@
+name: Bug report
+description: Report a reproducible bug in Quick Markdown
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Please provide enough detail for us to
+        reproduce quickly.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: One-line description of the issue.
+      placeholder: "Preview mode crashes when opening markdown with table"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version or commit
+      description: Release version or commit SHA.
+      placeholder: "1.0.0 or 9f8a7bc"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "macOS 26.0"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Please include exact steps.
+      placeholder: |
+        1. Open file ...
+        2. Toggle preview ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Minimal markdown sample
+      description: Paste the smallest sample that reproduces the issue.
+      render: markdown
+  - type: textarea
+    id: logs
+    attributes:
+      label: Crash/log output
+      description: Paste any relevant output.
+      render: shell

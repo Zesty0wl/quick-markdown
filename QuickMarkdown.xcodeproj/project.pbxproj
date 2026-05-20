@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -11,6 +11,7 @@
 		07AAEBB5233E04C6FC2981E6 /* SVGRasterizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B0DC1654573741A58A16BD9 /* SVGRasterizer.swift */; };
 		08272F9C18E41E1970B03242 /* MainMenuBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E8B39B1157BB6B65F1D3DE2 /* MainMenuBuilder.swift */; };
 		201B5924C036F0CB242BBF1D /* MarkdownDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8A2A0A4DC4FB7ACE152402 /* MarkdownDocument.swift */; };
+		3C2C5B6BA9FEEF976747E0CE /* SpeechSourceMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60C13A66927893B52104AB2 /* SpeechSourceMap.swift */; };
 		4D3B03CCF5C85579F6A48E91 /* FormattedPasteboardWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C7587942D7E87C43F52064 /* FormattedPasteboardWriter.swift */; };
 		511FF2F63ADB05E060370DB5 /* ImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E7221BBFBCC0C6E5331790C /* ImageLoader.swift */; };
 		581EAB764C8D7BF2B65ED8B0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 93B66594A3D54DAC366F69B7 /* PrivacyInfo.xcprivacy */; };
@@ -23,13 +24,12 @@
 		760A43A7EEEFB9D5CA440156 /* ReadingTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77ABE2CBD0BF69A1557E9B86 /* ReadingTheme.swift */; };
 		80E8F710EF2FCB62C94B28E7 /* MarkdownTextStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E8578E7FAF449C4D506F9F7 /* MarkdownTextStorage.swift */; };
 		93795C8B2608A3435E1D905D /* PDFExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496E34FB2A6D3BA45C0A407A /* PDFExporter.swift */; };
+		937F6D4F9F9D8811C3681442 /* SpeechController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02DC6C1E64DF494982381FB2 /* SpeechController.swift */; };
 		A01C65EA29A951F10CA457B5 /* MarkdownStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 415D4C4071399A6C8B7F4D0E /* MarkdownStyles.swift */; };
 		A4C85139DA5730E70269C040 /* ClipboardNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2D22324682887D62CEE033F /* ClipboardNormalizer.swift */; };
 		A5A355897E77DC3074E296C8 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56EA9155E9799F012DC00E37 /* main.swift */; };
 		B3EDBA7FF886AAF39CFB1E00 /* HTMLRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944C75B773638802D1D27C69 /* HTMLRenderer.swift */; };
 		C5375852859B778755053126 /* RTFRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 238322B0A46D6E2A00DF6A21 /* RTFRenderer.swift */; };
-		C9F1A1E4A11C4B6B9D2B0001 /* SpeechController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9F1A1E4A11C4B6B9D2B0002 /* SpeechController.swift */; };
-		C9F1A1E4A11C4B6B9D2B0003 /* SpeechSourceMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9F1A1E4A11C4B6B9D2B0004 /* SpeechSourceMap.swift */; };
 		CD1BF3C1751196F09F89B5B2 /* EditorViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16D35BC30FCE931EE6CDDF71 /* EditorViewController.swift */; };
 		DF1833D45466F764EBD31AE1 /* EditorViewController+Format.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B0687B5A221E8D93CDBD57 /* EditorViewController+Format.swift */; };
 		E4A8FB174CAE54B1403DB401 /* HomeAccessOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBF614CD1489E03C8DDAA324 /* HomeAccessOnboarding.swift */; };
@@ -39,6 +39,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		02DC6C1E64DF494982381FB2 /* SpeechController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechController.swift; sourceTree = "<group>"; };
 		063150C90A786C6B5CC75C1C /* LivePreviewStyler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePreviewStyler.swift; sourceTree = "<group>"; };
 		0B0DC1654573741A58A16BD9 /* SVGRasterizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SVGRasterizer.swift; sourceTree = "<group>"; };
 		0E7221BBFBCC0C6E5331790C /* ImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLoader.swift; sourceTree = "<group>"; };
@@ -56,13 +57,12 @@
 		63D7411AE64F8A4BEA85C9E3 /* DocumentWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentWindowController.swift; sourceTree = "<group>"; };
 		77ABE2CBD0BF69A1557E9B86 /* ReadingTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingTheme.swift; sourceTree = "<group>"; };
 		7D3850C9E69EE7ED66727EEC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		93B66594A3D54DAC366F69B7 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		93B66594A3D54DAC366F69B7 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		944C75B773638802D1D27C69 /* HTMLRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLRenderer.swift; sourceTree = "<group>"; };
 		9D8A2A0A4DC4FB7ACE152402 /* MarkdownDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownDocument.swift; sourceTree = "<group>"; };
-		A82F0CBEE4E8ED6F0090054C /* Quick Markdown.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Quick Markdown.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A60C13A66927893B52104AB2 /* SpeechSourceMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechSourceMap.swift; sourceTree = "<group>"; };
+		A82F0CBEE4E8ED6F0090054C /* QuickMarkdown.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = QuickMarkdown.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BAC3503D9D99709497871DCE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		C9F1A1E4A11C4B6B9D2B0002 /* SpeechController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechController.swift; sourceTree = "<group>"; };
-		C9F1A1E4A11C4B6B9D2B0004 /* SpeechSourceMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechSourceMap.swift; sourceTree = "<group>"; };
 		CBF614CD1489E03C8DDAA324 /* HomeAccessOnboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeAccessOnboarding.swift; sourceTree = "<group>"; };
 		E9B0687B5A221E8D93CDBD57 /* EditorViewController+Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EditorViewController+Format.swift"; sourceTree = "<group>"; };
 		F2D22324682887D62CEE033F /* ClipboardNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardNormalizer.swift; sourceTree = "<group>"; };
@@ -138,7 +138,7 @@
 		CCD0BEDBF0BDA6F29D52B6E8 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A82F0CBEE4E8ED6F0090054C /* Quick Markdown.app */,
+				A82F0CBEE4E8ED6F0090054C /* QuickMarkdown.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -158,8 +158,8 @@
 				1D7B14B6D9F77D61CA6A8DD9 /* PreviewViewController.swift */,
 				77ABE2CBD0BF69A1557E9B86 /* ReadingTheme.swift */,
 				F915A50BC1A9877BD3CDC0E7 /* ReloadBannerView.swift */,
-				C9F1A1E4A11C4B6B9D2B0002 /* SpeechController.swift */,
-				C9F1A1E4A11C4B6B9D2B0004 /* SpeechSourceMap.swift */,
+				02DC6C1E64DF494982381FB2 /* SpeechController.swift */,
+				A60C13A66927893B52104AB2 /* SpeechSourceMap.swift */,
 				0B0DC1654573741A58A16BD9 /* SVGRasterizer.swift */,
 			);
 			path = Editor;
@@ -185,7 +185,7 @@
 				D7A22BADE652BF9E4B0B7688 /* Markdown */,
 			);
 			productName = QuickMarkdown;
-			productReference = A82F0CBEE4E8ED6F0090054C /* Quick Markdown.app */;
+			productReference = A82F0CBEE4E8ED6F0090054C /* QuickMarkdown.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -198,6 +198,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					ABD9B0DA2B3C7173F99FD0DA = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -215,6 +216,7 @@
 			packageReferences = (
 				CCC28A97F027C349D061D2E7 /* XCRemoteSwiftPackageReference "swift-markdown" */,
 			);
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -261,9 +263,9 @@
 				C5375852859B778755053126 /* RTFRenderer.swift in Sources */,
 				760A43A7EEEFB9D5CA440156 /* ReadingTheme.swift in Sources */,
 				693F8BE10DB9EEF945F53E7B /* ReloadBannerView.swift in Sources */,
-				C9F1A1E4A11C4B6B9D2B0001 /* SpeechController.swift in Sources */,
-				C9F1A1E4A11C4B6B9D2B0003 /* SpeechSourceMap.swift in Sources */,
 				07AAEBB5233E04C6FC2981E6 /* SVGRasterizer.swift in Sources */,
+				937F6D4F9F9D8811C3681442 /* SpeechController.swift in Sources */,
+				3C2C5B6BA9FEEF976747E0CE /* SpeechSourceMap.swift in Sources */,
 				E9ACB61E6B8DAD962BB59BCF /* StatusBarView.swift in Sources */,
 				A5A355897E77DC3074E296C8 /* main.swift in Sources */,
 			);
@@ -278,17 +280,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = QuickMarkdown/QuickMarkdown.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
-				DEVELOPMENT_TEAM = 8352865GK4;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = QuickMarkdown/Info.plist;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neiljohn.quickmarkdown;
 				PRODUCT_MODULE_NAME = QuickMarkdown;
 				PRODUCT_NAME = "Quick Markdown";
@@ -330,12 +328,12 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 8352865GK4;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -376,17 +374,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = QuickMarkdown/QuickMarkdown.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
-				DEVELOPMENT_TEAM = 8352865GK4;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = QuickMarkdown/Info.plist;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neiljohn.quickmarkdown;
 				PRODUCT_MODULE_NAME = QuickMarkdown;
 				PRODUCT_NAME = "Quick Markdown";
@@ -428,12 +422,12 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 8352865GK4;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

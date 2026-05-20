@@ -1,0 +1,52 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: macos-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest available Xcode
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Verify project has shared scheme
+        run: |
+          set -euo pipefail
+          xcodebuild -list -project QuickMarkdown.xcodeproj
+
+      - name: Resolve Swift packages
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project QuickMarkdown.xcodeproj \
+            -scheme QuickMarkdown
+
+      - name: Build (when macOS 26 SDK is available)
+        run: |
+          set -euo pipefail
+          if xcodebuild -showsdks | grep -q "macosx26"; then
+            xcodebuild \
+              -project QuickMarkdown.xcodeproj \
+              -scheme QuickMarkdown \
+              -configuration Debug \
+              -destination 'platform=macOS' \
+              build
+          else
+            echo "macOS 26 SDK not available on this runner; build step skipped."
+          fi
