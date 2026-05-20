@@ -5,22 +5,22 @@ import AppKit
 /// use the system semantic palette so they adapt to light / dark mode.
 enum PlainSourceHighlighter {
 
-    // MARK: - Colour palette (VS Code Markdown–inspired)
+    // MARK: - Colour palette (VS Code Dark+ / Light+ aligned)
 
     /// Heading markers and text — blue / bold.
     private static let headingColor = NSColor.systemBlue
-    /// Bold markers and text.
-    private static let boldColor = NSColor.systemOrange
-    /// Italic markers and text.
-    private static let italicColor = NSColor.systemYellow
-    /// Inline code and fenced code fence lines.
-    private static let codeColor = NSColor.systemGreen
+    /// Bold markers and text — blue / bold (font weight distinguishes from heading).
+    private static let boldColor = NSColor.systemBlue
+    /// Italic markers and text — blue / italic (font style distinguishes from heading).
+    private static let italicColor = NSColor.systemBlue
+    /// Inline code and fenced code fence lines — orange (VS Code #ce9178).
+    private static let codeColor = NSColor.systemOrange
     /// Link text `[...]`.
     private static let linkTextColor = NSColor.systemTeal
     /// Link URL `(...)` and reference labels.
     private static let linkURLColor = NSColor.systemCyan
-    /// Blockquotes `> ...`.
-    private static let quoteColor = NSColor.secondaryLabelColor
+    /// Blockquotes `> ...` — green (VS Code #608b4e).
+    private static let quoteColor = NSColor.systemGreen
     /// List bullets / numbers.
     private static let listMarkerColor = NSColor.systemPurple
     /// YAML front-matter fences and keys.
@@ -28,13 +28,13 @@ enum PlainSourceHighlighter {
     /// HTML tags.
     private static let htmlColor = NSColor.systemRed
     /// Table pipes and horizontal rules.
-    private static let punctuationColor = NSColor.tertiaryLabelColor
+    private static let punctuationColor = NSColor.systemGray
     /// Task-list checkboxes `[ ]` / `[x]`.
     private static let taskColor = NSColor.systemIndigo
     /// Image `!` prefix.
     private static let imageColor = NSColor.systemMint
-    /// Strikethrough `~~`.
-    private static let strikethroughColor = NSColor.systemBrown
+    /// Strikethrough `~~` — red for "deleted" semantics.
+    private static let strikethroughColor = NSColor.systemRed
 
     // MARK: - Pattern table
 
