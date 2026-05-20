@@ -564,63 +564,13 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
     }
 
     mutating func visitTable(_ table: Markdown.Table) -> NSAttributedString {
-        if forPasteboard {
-            return renderPasteboardTable(table)
-        }
-        // Simple text rendering: header row + separator + body rows. Cells
-        // are tab-separated; the monospaced font keeps columns roughly aligned.
-        let mono = MarkdownStyles.monospacedFont()
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: mono,
-            .foregroundColor: MarkdownStyles.foreground,
-        ]
-        let result = NSMutableAttributedString()
-        let headerCells: [String] = Array(table.head.cells).map { stringForCell($0) }
-        if !headerCells.isEmpty {
-            let header = NSMutableAttributedString(
-                string: headerCells.joined(separator: "  │  ") + "\n",
-                attributes: attrs
-            )
-            applyTrait(.boldFontMask, to: header)
-            result.append(header)
-            let divider = headerCells.map { String(repeating: "─", count: max($0.count, 3)) }
-                .joined(separator: "──┼──")
-            result.append(NSAttributedString(string: divider + "\n", attributes: [
-                .font: mono,
-                .foregroundColor: MarkdownStyles.dimmedMarker,
-            ]))
-        }
-        for row in table.body.rows {
-            let cells: [String] = Array(row.cells).map { stringForCell($0) }
-            result.append(NSAttributedString(
-                string: cells.joined(separator: "  │  ") + "\n",
-                attributes: attrs
-            ))
-        }
-        result.append(blockTerminator())
-        return result
+        return renderPasteboardTable(table)
     }
 
-    private mutating func stringForCell(_ cell: Markdown.Table.Cell) -> String {
-        renderChildren(cell).string
-            .replacingOccurrences(of: "\n", with: " ")
-            .trimmingCharacters(in: .whitespaces)
-    }
-
-    /// Pasteboard-mode table rendering. Builds a single `NSTextTable` plus
-    /// one `NSTextTableBlock` per cell, then emits a paragraph per cell
-    /// whose `paragraphStyle.textBlocks` references its block. AppKit's
-    /// RTF serializer turns that into proper `\trowd \cell \row` markup
-    /// (verified on macOS 26), which Word for Mac pastes as a real,
-    /// editable table instead of monospaced text with `│` separators.
-    ///
-    /// Inline cell content (bold, italic, links, inline code) is rendered
-    /// by the existing inline visitors, so styling carries through.
-    ///
-    /// Cells with `colspan == 0` (GFM "continuation" markers from
-    /// HTML-in-Markdown) are skipped — the preceding cell's column span
-    /// covers them. Higher `colspan` / `rowspan` values pass through to
-    /// `NSTextTableBlock`.
+    /// Table rendering using NSTextTable. Builds one `NSTextTableBlock`
+    /// per cell so AppKit draws bordered, aligned cells in both the
+    /// preview and pasteboard paths. The RTF serializer turns the same
+    /// structure into `\trowd \cell \row` markup that Word recognises.
     private mutating func renderPasteboardTable(
         _ table: Markdown.Table
     ) -> NSAttributedString {
