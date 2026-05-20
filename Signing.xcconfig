@@ -1,0 +1,23 @@
+// Local code-signing configuration for Quick Markdown.
+//
+// This file is tracked in git with safe defaults (ad-hoc signing) so
+// `xcodegen generate` and a fresh clone "just build" without a team.
+// xcodegen NEVER rewrites this file, so any local edits survive every
+// regeneration — unlike `project.yml`-driven build settings.
+//
+// To enable Developer ID signing for archive / notarization:
+//
+//   1. Set DEVELOPMENT_TEAM below to your Apple Developer Team ID.
+//   2. Tell git to ignore your local edits so they never get committed:
+//
+//        git update-index --skip-worktree Signing.xcconfig
+//
+//      (use `--no-skip-worktree` to undo.)
+//
+// With CODE_SIGN_STYLE = Automatic, Xcode picks the correct identity
+// from your team on archive (Developer ID Application) and on Debug
+// (Apple Development), overriding CODE_SIGN_IDENTITY below.
+
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic
+CODE_SIGN_IDENTITY = -

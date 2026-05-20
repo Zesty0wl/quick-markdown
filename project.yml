@@ -13,9 +13,6 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
     MARKETING_VERSION: "1.0.2"
     CURRENT_PROJECT_VERSION: "3"
-    DEVELOPMENT_TEAM: ""
-    CODE_SIGN_STYLE: Automatic
-    CODE_SIGN_IDENTITY: "-"
     ENABLE_HARDENED_RUNTIME: YES
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
@@ -99,6 +96,12 @@ targets:
         COMBINE_HIDPI_IMAGES: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MACOSX_DEPLOYMENT_TARGET: "26.0"
+    # Code-signing lives in a separate xcconfig so xcodegen never wipes
+    # the maintainer's local DEVELOPMENT_TEAM on regeneration. See the
+    # comments at the top of `Signing.xcconfig`.
+    configFiles:
+      Debug: Signing.xcconfig
+      Release: Signing.xcconfig
     dependencies:
       - package: swift-markdown
         product: Markdown
