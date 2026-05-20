@@ -583,11 +583,38 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
         let columnCount = max(headerCount, bodyCount)
         guard columnCount > 0 else { return NSAttributedString() }
 
+        // Pre-compute content-based column widths. Measure the longest
+        // plain-text cell in each column, then distribute the table
+        // width proportionally (as percentages).
+        var maxLengths = [Int](repeating: 0, count: columnCount)
+        func measureRow(_ cells: some Sequence<Markdown.Table.Cell>) {
+            var col = 0
+            for cell in cells {
+                guard cell.colspan != 0 else { continue }
+                let cs = max(1, Int(cell.colspan))
+                if cs == 1 {
+                    let len = renderChildren(cell).string
+                        .replacingOccurrences(of: "\n", with: " ")
+                        .trimmingCharacters(in: .whitespaces)
+                        .count
+                    maxLengths[col] = max(maxLengths[col], len)
+                }
+                col += cs
+            }
+        }
+        measureRow(headerCells)
+        for row in bodyRows { measureRow(Array(row.cells)) }
+        // Ensure every column has a minimum width.
+        for i in 0..<columnCount {
+            maxLengths[i] = max(maxLengths[i], 4)
+        }
+        let total = CGFloat(maxLengths.reduce(0, +))
+        let columnWidths: [CGFloat] = maxLengths.map { CGFloat($0) / total * 100.0 }
+
         let nsTable = NSTextTable()
         nsTable.numberOfColumns = columnCount
         nsTable.collapsesBorders = true
         nsTable.hidesEmptyCells = false
-        nsTable.layoutAlgorithm = .automaticLayoutAlgorithm
 
         let alignments = table.columnAlignments
         let result = NSMutableAttributedString()
@@ -608,18 +635,19 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
                     rowSpan: rowspan,
                     colSpan: colspan,
                     alignment: col < alignments.count ? alignments[col] : nil,
-                    isHeader: true
+                    isHeader: true,
+                    columnWidths: columnWidths
                 ))
                 col += colspan
             }
-            // Pad short header row so the table reaches columnCount cells.
             while col < columnCount {
                 result.append(renderEmptyTableCell(
                     table: nsTable,
                     row: rowIndex,
                     col: col,
                     alignment: col < alignments.count ? alignments[col] : nil,
-                    isHeader: true
+                    isHeader: true,
+                    columnWidths: columnWidths
                 ))
                 col += 1
             }
@@ -640,7 +668,8 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
                     rowSpan: rowspan,
                     colSpan: colspan,
                     alignment: col < alignments.count ? alignments[col] : nil,
-                    isHeader: false
+                    isHeader: false,
+                    columnWidths: columnWidths
                 ))
                 col += colspan
             }
@@ -650,7 +679,8 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
                     row: rowIndex,
                     col: col,
                     alignment: col < alignments.count ? alignments[col] : nil,
-                    isHeader: false
+                    isHeader: false,
+                    columnWidths: columnWidths
                 ))
                 col += 1
             }
@@ -669,7 +699,8 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
         rowSpan: Int,
         colSpan: Int,
         alignment: Markdown.Table.ColumnAlignment?,
-        isHeader: Bool
+        isHeader: Bool,
+        columnWidths: [CGFloat]
     ) -> NSAttributedString {
         let block = makeTableBlock(
             table: table,
@@ -677,7 +708,8 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
             col: col,
             rowSpan: rowSpan,
             colSpan: colSpan,
-            isHeader: isHeader
+            isHeader: isHeader,
+            columnWidths: columnWidths
         )
         let content = NSMutableAttributedString(attributedString: renderChildren(cell))
         // Cells should never carry block paragraph styles (e.g. body
@@ -700,7 +732,8 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
         row: Int,
         col: Int,
         alignment: Markdown.Table.ColumnAlignment?,
-        isHeader: Bool
+        isHeader: Bool,
+        columnWidths: [CGFloat]
     ) -> NSAttributedString {
         let block = makeTableBlock(
             table: table,
@@ -708,7 +741,8 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
             col: col,
             rowSpan: 1,
             colSpan: 1,
-            isHeader: isHeader
+            isHeader: isHeader,
+            columnWidths: columnWidths
         )
         let style = tableCellParagraphStyle(block: block, alignment: alignment)
         return NSAttributedString(string: "\n", attributes: [
@@ -724,7 +758,8 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
         col: Int,
         rowSpan: Int,
         colSpan: Int,
-        isHeader: Bool
+        isHeader: Bool,
+        columnWidths: [CGFloat]
     ) -> NSTextTableBlock {
         let block = NSTextTableBlock(
             table: table,
@@ -733,6 +768,13 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
             startingColumn: col,
             columnSpan: colSpan
         )
+        // Set proportional column width based on content measurement.
+        let endCol = min(col + colSpan, columnWidths.count)
+        if col < columnWidths.count {
+            var pct: CGFloat = 0
+            for c in col..<endCol { pct += columnWidths[c] }
+            block.setContentWidth(pct, type: .percentageValueType)
+        }
         // GitHub-style borders: 1pt solid lines with visible color.
         block.setBorderColor(MarkdownStyles.tableBorder)
         for edge in [NSRectEdge.minX, .maxX, .minY, .maxY] {
