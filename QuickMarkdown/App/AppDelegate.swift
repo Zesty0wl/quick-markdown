@@ -15,6 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // First-launch only: explain why we need home-folder access and
         // surface the TCC prompts up front rather than mid-edit.
         HomeAccessOnboarding.runIfNeeded()
+        // Throttled (once / 24h) GitHub Releases poll. No-op on failure
+        // and when up to date. See `UpdateChecker` for the rationale.
+        UpdateChecker.shared.checkOnLaunchIfNeeded()
     }
 
     /// Cold launch with no command-line files / no autorestored docs:

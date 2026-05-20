@@ -28,6 +28,13 @@ enum MainMenuBuilder {
         menu.addItem(withTitle: "About \(appName)",
                      action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                      keyEquivalent: "")
+        let checkForUpdates = NSMenuItem(
+            title: "Check for Updates\u{2026}",
+            action: #selector(UpdateChecker.checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        checkForUpdates.target = UpdateChecker.shared
+        menu.addItem(checkForUpdates)
         menu.addItem(.separator())
 
         let services = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
