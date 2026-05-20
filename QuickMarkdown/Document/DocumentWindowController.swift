@@ -364,6 +364,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
         refreshReadingPopupChecks()
     }
 
+    /// Opens the official OpenDyslexic download page. Surfaced from the
+    /// Reading popup when the dyslexia-friendly font is not yet installed.
+    @objc private func openDyslexicDownloadPage(_ sender: Any?) {
+        if let url = URL(string: "https://opendyslexic.org") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     /// After a theme / font change, walk the Reading pulldown's menu and
     /// flip the checkmarks so the user sees which row is active.
     private func refreshReadingPopupChecks() {
@@ -942,6 +950,19 @@ extension DocumentWindowController: NSToolbarDelegate {
             }
             it.state = (family == currentFont) ? .on : .off
             popup.menu?.addItem(it)
+        }
+
+        // If the dyslexia-friendly font isn't installed, give the user a
+        // one-click route to the OpenDyslexic download page.
+        if !ReadingFontFamily.dyslexic.isAvailable {
+            let getIt = NSMenuItem(
+                title: "Get OpenDyslexic Font…",
+                action: #selector(openDyslexicDownloadPage(_:)),
+                keyEquivalent: ""
+            )
+            getIt.target = self
+            getIt.indentationLevel = 1
+            popup.menu?.addItem(getIt)
         }
 
         let item = NSToolbarItem(itemIdentifier: id)
