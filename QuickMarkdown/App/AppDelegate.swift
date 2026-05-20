@@ -71,6 +71,46 @@ final class QuickMarkdownDocumentController: NSDocumentController {
                              display: displayDocument,
                              completionHandler: completionHandler)
     }
+
+    /// Whenever we open a file (from File > Open, Open Recent, drag-drop,
+    /// or Finder double-click), if the frontmost window holds an empty
+    /// untitled document we close it after the new one is on screen.
+    /// This avoids leaving a useless blank window behind when the user is
+    /// "navigating" rather than collecting multiple docs.
+    override func openDocument(
+        withContentsOf url: URL,
+        display displayDocument: Bool,
+        completionHandler: @escaping (NSDocument?, Bool, Error?) -> Void
+    ) {
+        let candidate = emptyUntitledDocumentToReplace()
+        super.openDocument(withContentsOf: url,
+                           display: displayDocument) { newDoc, wasAlreadyOpen, error in
+            if let candidate, newDoc !== candidate, error == nil {
+                // Close the empty placeholder. No need to prompt — it has
+                // no content and no fileURL, so nothing can be lost.
+                candidate.close()
+            }
+            completionHandler(newDoc, wasAlreadyOpen, error)
+        }
+    }
+
+    /// Returns the frontmost `MarkdownDocument` if it is untitled, has no
+    /// edits, and contains no content. `nil` otherwise — in which case the
+    /// new document should open into a fresh window as before.
+    private func emptyUntitledDocumentToReplace() -> MarkdownDocument? {
+        // Prefer the document attached to the key window so the user's
+        // current focus drives the decision.
+        let candidate: NSDocument? =
+            NSApp.keyWindow?.windowController?.document as? NSDocument
+            ?? NSApp.mainWindow?.windowController?.document as? NSDocument
+            ?? documents.last
+        guard let doc = candidate as? MarkdownDocument,
+              doc.fileURL == nil,
+              !doc.isDocumentEdited,
+              doc.content.isEmpty
+        else { return nil }
+        return doc
+    }
 }
 
 
