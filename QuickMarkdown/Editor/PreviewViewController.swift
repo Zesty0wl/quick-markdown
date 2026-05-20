@@ -142,8 +142,8 @@ final class PreviewViewController: NSViewController {
             -webkit-text-size-adjust: none;
         }
         a { color: \(linkClr); }
-        h1 { font-size: 32px; font-weight: 700; margin: 24px 0 8px; line-height: 1.3; }
-        h2 { font-size: 24px; font-weight: 600; margin: 24px 0 8px; line-height: 1.3; }
+        h1 { font-size: 32px; font-weight: 700; margin: 24px 0 8px; line-height: 1.3; padding-bottom: 6px; border-bottom: 1px solid \(borderClr); }
+        h2 { font-size: 24px; font-weight: 600; margin: 24px 0 8px; line-height: 1.3; padding-bottom: 6px; border-bottom: 1px solid \(borderClr); }
         h3 { font-size: 20px; font-weight: 600; margin: 20px 0 8px; }
         h4 { font-size: 18px; font-weight: 600; margin: 16px 0 8px; }
         h5 { font-size: 16px; font-weight: 600; margin: 16px 0 8px; }
