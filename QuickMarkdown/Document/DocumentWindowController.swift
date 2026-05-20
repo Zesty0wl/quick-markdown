@@ -902,6 +902,12 @@ extension DocumentWindowController: NSToolbarDelegate {
         return item
     }
 
+    /// Tag used to mark the "Font" header inside the Reading pulldown so the
+    /// menu delegate can find — and rebuild — the items below it on every
+    /// open. This is how newly-installed fonts (e.g. OpenDyslexic) get picked
+    /// up without quitting the app.
+    fileprivate static let readingFontSectionTag = -424242
+
     /// Build the Reading pulldown — a single toolbar item that exposes the
     /// theme choices (top section) and the font choices (bottom section).
     /// We use representedObject on each NSMenuItem to carry the enum case so
@@ -936,7 +942,36 @@ extension DocumentWindowController: NSToolbarDelegate {
 
         let fontHeader = NSMenuItem(title: "Font", action: nil, keyEquivalent: "")
         fontHeader.isEnabled = false
+        fontHeader.tag = Self.readingFontSectionTag
         popup.menu?.addItem(fontHeader)
+        rebuildFontMenuItems(in: popup.menu!)
+
+        // Make the menu rebuild its font section every time it's about to
+        // open so newly-installed fonts (e.g. OpenDyslexic) are picked up
+        // without quitting the app.
+        popup.menu?.delegate = self
+
+        let item = NSToolbarItem(itemIdentifier: id)
+        item.label = "Reading"
+        item.paletteLabel = "Reading Appearance"
+        item.toolTip = "Background colour, text colour, and font"
+        item.view = popup
+        return item
+    }
+
+    /// Removes every item below the "Font" header and re-appends the current
+    /// font choices plus the optional "Get OpenDyslexic Font…" download link.
+    /// Called both at toolbar build time and from `menuNeedsUpdate` so the
+    /// availability state always reflects the live font registry.
+    fileprivate func rebuildFontMenuItems(in menu: NSMenu) {
+        guard let headerIndex = menu.items.firstIndex(where: { $0.tag == Self.readingFontSectionTag })
+        else { return }
+
+        // Drop everything that follows the header.
+        while menu.items.count > headerIndex + 1 {
+            menu.removeItem(at: headerIndex + 1)
+        }
+
         let currentFont = ReadingPreferences.shared.fontFamily
         for family in ReadingFontFamily.allCases {
             let it = NSMenuItem(title: family.displayName,
@@ -949,7 +984,7 @@ extension DocumentWindowController: NSToolbarDelegate {
                 it.title = "\(family.displayName) (not installed)"
             }
             it.state = (family == currentFont) ? .on : .off
-            popup.menu?.addItem(it)
+            menu.addItem(it)
         }
 
         // If the dyslexia-friendly font isn't installed, give the user a
@@ -962,15 +997,19 @@ extension DocumentWindowController: NSToolbarDelegate {
             )
             getIt.target = self
             getIt.indentationLevel = 1
-            popup.menu?.addItem(getIt)
+            menu.addItem(getIt)
         }
+    }
+}
 
-        let item = NSToolbarItem(itemIdentifier: id)
-        item.label = "Reading"
-        item.paletteLabel = "Reading Appearance"
-        item.toolTip = "Background colour, text colour, and font"
-        item.view = popup
-        return item
+// MARK: - NSMenuDelegate
+
+extension DocumentWindowController: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        // Only the Reading pulldown carries the font-section marker.
+        if menu.items.contains(where: { $0.tag == Self.readingFontSectionTag }) {
+            rebuildFontMenuItems(in: menu)
+        }
     }
 }
 
