@@ -10,6 +10,9 @@ final class PreviewViewController: NSViewController {
 
     private var webView: WKWebView!
 
+    /// Spinner shown while the WKWebView loads content.
+    private var spinner: NSProgressIndicator!
+
     /// Last source we rendered. Cached so theme changes can re-render.
     private var lastRenderedSource: String = ""
 
@@ -54,11 +57,20 @@ final class PreviewViewController: NSViewController {
 
         root.addSubview(webView)
 
+        spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .regular
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        spinner.isDisplayedWhenStopped = false
+        root.addSubview(spinner)
+
         NSLayoutConstraint.activate([
             webView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             webView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             webView.topAnchor.constraint(equalTo: root.topAnchor),
             webView.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            spinner.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: root.centerYAnchor),
         ])
 
         self.view = root
@@ -85,6 +97,8 @@ final class PreviewViewController: NSViewController {
     func render(source: String, baseURL: URL? = nil) {
         lastRenderedSource = source
         lastRenderedBaseURL = baseURL
+
+        spinner.startAnimation(nil)
 
         // Save current scroll position before replacing content.
         webView.evaluateJavaScript(
@@ -251,6 +265,7 @@ final class PreviewViewController: NSViewController {
 
     /// Restore scroll position after page loads.
     fileprivate func restoreScroll() {
+        spinner.stopAnimation(nil)
         let frac = savedScrollFraction
         webView.evaluateJavaScript("""
             var maxY = document.body.scrollHeight - window.innerHeight;
