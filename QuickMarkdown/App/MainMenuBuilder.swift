@@ -231,10 +231,14 @@ enum MainMenuBuilder {
                               action: #selector(EditorViewController.insertCodeBlock(_:)),
                               key: "k",
                               modifiers: [.command, .shift]))
-        menu.addItem(menuItem("Insert Table",
+        menu.addItem(menuItem("Insert Table…",
                               action: #selector(EditorViewController.insertTable(_:)),
                               key: "t",
                               modifiers: [.command, .option]))
+        menu.addItem(menuItem("Realign Tables",
+                              action: #selector(EditorViewController.realignTables(_:)),
+                              key: "t",
+                              modifiers: [.command, .option, .control]))
         menu.addItem(menuItem("Toggle Task",
                               action: #selector(EditorViewController.toggleTask(_:)),
                               key: "t",

@@ -1,169 +1,81 @@
 <div align="center">
 
-# Quick Markdown
+<img src="media/qm-logo.svg" alt="Quick Markdown" width="720">
 
-**A focused, beautiful, native macOS Markdown editor for the AI era.**
+A focused, beautiful, native macOS Markdown editor for the AI era.
 
 [![Build](https://github.com/Zesty0wl/quick-markdown/actions/workflows/build.yml/badge.svg)](https://github.com/Zesty0wl/quick-markdown/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Platform: macOS 26+](https://img.shields.io/badge/platform-macOS%2026%2B-blue.svg)](#system-requirements)
+[![Platform: macOS 26+](https://img.shields.io/badge/platform-macOS%2026%2B-blue.svg)](#download)
 [![Swift 6](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
+[![Signed and Notarized](https://img.shields.io/badge/signed%20and%20notarized-Apple%20Developer%20ID-success)](#download)
 
-<img src="quick-markdown.png" alt="Quick Markdown" width="640">
+### [Download for macOS](https://github.com/Zesty0wl/quick-markdown/releases/latest)
+
+Signed and notarized. App Sandbox. macOS 26 Tahoe and newer.
 
 </div>
 
 ---
 
-Quick Markdown opens a `.md` file. It makes it beautiful. It gets out of the way.
+Your AI just wrote you a beautiful Markdown document. Now you need somewhere beautiful to read it, share it, and ship it.
 
-It's built for the files AI assistants produce — READMEs, documentation, meeting notes, long-form drafts — and does three things exceptionally well:
-
-1. **Watch** a Markdown file change as an LLM (Claude Code, Copilot, etc.) writes it, and render the updates live.
-2. **Edit** Markdown with a hybrid live-preview editor that looks rendered but stores plain Markdown.
-3. **Share** the result by exporting to PDF or copying as rich text into Outlook, Word, or Notion.
-
-It is *not* a knowledge base, a vault, or a workspace. One file at a time. Source is the truth.
+Quick Markdown opens a `.md` file, makes it gorgeous, and gets out of the way. No vault. No workspace. No plugin marketplace. One file at a time.
 
 ---
 
-## Features
+## A personal tool, shared
 
-- **Hybrid live preview** — rendered headings, bold, lists, tables, code, with raw markers revealed near the cursor.
-- **Plain source mode** with VS Code Dark+ / Light+ style syntax highlighting, monospaced font, fluid toggle.
-- **Live file watching** — external writes (e.g. an LLM writing to the file) are reflected within ~150 ms, with a non-modal banner if you also have unsaved local edits.
-- **Format menu** with the keyboard shortcuts you'd expect: Bold, Italic, Code, Link, Heading 1–3, Insert Code Block, Insert Table, Toggle Task.
-- **Copy Formatted** (⇧⌘C) writes HTML + RTF + plain Markdown to the pasteboard — pastes cleanly into Outlook for Mac, Word, and Notion.
-- **PDF export** via `WKWebView.createPDF` — single tall page, fit for sharing.
-- **Reading themes & fonts** — System, Sepia, Solarized, etc. + System / Serif / Rounded / Dyslexia-Friendly (with a one-click download link to [OpenDyslexic](https://opendyslexic.org) when the font isn't installed).
-- **Read aloud** — built-in text-to-speech with source highlighting.
-- **GFM tables, task lists, code fences, footnotes, YAML front matter, strikethrough, images** (external URLs + relative paths, including SVG).
-- **Sandboxed.** App Sandbox, hardened runtime, sandboxed scripting; safe to ship through the Mac App Store.
-- **Native.** Pure Swift 6 / AppKit. No Electron. No web runtime in the editor (only used for HTML rendering and PDF export).
+I built Quick Markdown for me. I use it all day, every day, for reading what my LLMs write and for shipping Markdown into the apps I actually live in. It runs on macOS. There is no Windows version. There likely never will be. Suck it up, buttercup.
+
+It's free, it's open source, it's MIT licensed. Fill your boots.
 
 ---
 
-## System requirements
+## What it does
 
-- macOS 26.0 (Tahoe) or newer
-- Apple Silicon or Intel
-- Xcode 26.0 or newer (only to build from source)
-
----
-
-## Install
-
-### Download a release
-
-Download the latest signed and notarized installer package from:
-
-- https://github.com/Zesty0wl/quick-markdown/releases/latest
-
-### Build from source
-
-```bash
-# Prereqs: Xcode 26+ and (optionally) xcodegen
-brew install xcodegen          # only needed if you edit project.yml
-
-# Clone
-git clone https://github.com/Zesty0wl/quick-markdown.git
-cd quick-markdown
-
-# (Optional) re-generate the .xcodeproj from project.yml
-xcodegen generate
-
-# Build the Debug app
-xcodebuild -scheme QuickMarkdown -configuration Debug build
-
-# Open in Xcode and run
-open QuickMarkdown.xcodeproj
-```
-
-The first build pulls [`swift-markdown`](https://github.com/apple/swift-markdown) via Swift Package Manager.
-
-Maintainers: see [`RELEASING.md`](RELEASING.md) for the release workflow.
-
-### Code signing for local builds
-
-`project.yml` ships with `DEVELOPMENT_TEAM: ""` and `CODE_SIGN_IDENTITY: "-"` so the project builds with ad-hoc signing out of the box. To run a sandboxed build under your own team:
-
-1. Open the project in Xcode.
-2. Select the `Quick Markdown` target → **Signing & Capabilities** → set your Team.
-3. Build & run.
-
-Don't commit your team ID — local Xcode changes to `project.pbxproj` are easy to do by accident. If you regenerate via `xcodegen generate`, your `project.yml` override (e.g. `DEVELOPMENT_TEAM: ABCDE12345`) stays in your working tree.
+- **Fast.** Pure Swift 6, AppKit, zero Electron. Opens instantly, scrolls smoothly, sips RAM.
+- **Built for LLMs.** Point it at the file Claude Code, Copilot, or ChatGPT is writing. Watch the page rewrite itself in real time.
+- **Real-time visual updates.** Edit the `.md` or a sibling SVG / PNG and the preview follows. No refresh button. Your scroll position survives.
+- **Paste in from your LLM.** Select all and copy in Claude / ChatGPT / Gemini (`⌘A`, `⌘C`), then paste into Quick Markdown (`⌘V`). It strips the chat-app cruft and renders fresh Markdown.
+- **Paste out as rich text anywhere.** `⇧⌘C` copies your document as HTML, RTF, and Markdown in one go. Outlook, Word, Notion, Confluence, Slack, Mail. It lands looking like it was authored there. `⇧⌘E` exports a signature-ready PDF.
+- **Six themes, including dyslexia support.** Light, Dark, Sepia, Solarized, Night Sky, plus an OpenDyslexic-aware mode for accessible reading. Type sizes and fonts swap live.
+- **Read aloud.** Built-in macOS text-to-speech with live source highlighting. Coffee, meet doc.
+- **Signed and notarized.** Apple Developer ID, hardened runtime, App Sandbox. Gatekeeper opens it without a fuss.
 
 ---
 
-## How it works
+## The gallery
 
-| Concern | Implementation |
-|---|---|
-| Markdown parsing | [`swift-markdown`](https://github.com/apple/swift-markdown) (Apple, SPM) |
-| Editor | `NSTextView` + an `NSTextStorage` subclass that stores the raw Markdown source and applies display attributes only (`MarkdownTextStorage`) |
-| Live preview rendering | AST walk produces `NSAttributedString` styling (`MarkdownAttributedRenderer`, `LivePreviewStyler`) |
-| Source-mode highlighting | Regex-based attribute pass with a VS Code-matched palette (`PlainSourceHighlighter`) |
-| HTML / PDF export | Custom `HTMLRenderer` + offscreen `WKWebView.createPDF` |
-| Rich-text clipboard | Composite `NSPasteboardItem` with `public.html`, `public.rtf`, `public.utf8-plain-text` (`FormattedPasteboardWriter`) |
-| File watching | `NSFilePresenter` on the document, debounced 150 ms |
-| Project generation | [`xcodegen`](https://github.com/yonaskolb/XcodeGen) from `project.yml` |
-
-The full design rationale lives in [`QuickMarkdown_PRD.md`](QuickMarkdown_PRD.md).
+| Light | Dark | Sepia |
+|:-:|:-:|:-:|
+| ![Light theme](media/light.png) | ![Dark theme](media/dark.png) | ![Sepia theme](media/sepia.png) |
+| **Solarized** | **Night Sky** | **OpenDyslexic** |
+| ![Solarized theme](media/solarized.png) | ![Night Sky theme](media/night%20sky.png) | ![OpenDyslexic theme](media/open-dyslexia.png) |
 
 ---
 
-## Keyboard shortcuts
+## Keyboard cheat sheet
 
-| Action | Shortcut |
-|---|---|
-| Open file | ⌘O |
-| New file | ⌘N |
-| Save | ⌘S |
-| Save As… | ⇧⌘S |
-| Toggle Preview / Source | ⇧⌘P |
-| Copy Formatted | ⇧⌘C |
-| Export PDF | ⇧⌘E |
-| Bold | ⌘B |
-| Italic | ⌘I |
-| Inline code | ⌘E |
-| Link | ⌘K |
-| Insert Code Block | ⇧⌘K |
-| Insert Table | ⌥⌘T |
-| Toggle Task | ⇧⌘T |
-| Heading 1 / 2 / 3 | ⌥⌘1 / ⌥⌘2 / ⌥⌘3 |
+| Action | Shortcut | Action | Shortcut |
+|---|---|---|---|
+| Open file | `⌘O` | Copy as rich text | `⇧⌘C` |
+| New file | `⌘N` | Export PDF | `⇧⌘E` |
+| Save | `⌘S` | Read aloud | `⌥⌘R` |
+| Toggle Preview / Source | `⇧⌘P` | Bold / Italic / Code | `⌘B` / `⌘I` / `⌘E` |
+| Heading 1 / 2 / 3 | `⌥⌘1` / `⌥⌘2` / `⌥⌘3` | Link | `⌘K` |
+| Insert Code Block | `⇧⌘K` | Insert Table | `⌥⌘T` |
+| Realign Tables | `⌃⌥⌘T` | Toggle Task | `⇧⌘T` |
 
 ---
 
-## Project layout
+## Open source
 
-```
-QuickMarkdown/
-├── App/                  # AppDelegate, MainMenuBuilder, main.swift, onboarding
-├── Document/             # NSDocument subclass, window controller, status bar
-├── Editor/               # NSTextView, NSTextStorage, styling, speech, themes
-├── Export/               # HTMLRenderer, PDFExporter, RTFRenderer, pasteboard writer
-├── Assets.xcassets/      # App icon
-├── Info.plist            # Generated by xcodegen — DO NOT edit by hand
-├── PrivacyInfo.xcprivacy # App Store privacy manifest
-└── QuickMarkdown.entitlements # Generated — edit project.yml instead
+MIT licensed. The source is yours. Read it, fork it, ship it.
 
-project.yml               # xcodegen spec — source of truth for the project
-QuickMarkdown_PRD.md      # Product requirements & design rationale
-```
-
----
-
-## Contributing
-
-Pull requests are welcome. Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the design philosophy ("does this make the app better at opening one Markdown file?") and the code style.
-
-By contributing you agree your code is licensed under the MIT License and that you abide by the [Code of Conduct](CODE_OF_CONDUCT.md).
-
----
-
-## Security
-
-Found a vulnerability? Please **do not** file a public issue — see [`SECURITY.md`](SECURITY.md) for private disclosure instructions.
+* Contributing: see [`CONTRIBUTING.md`](CONTRIBUTING.md) for the design philosophy and how to send a PR.
+* Security: found a vulnerability? Please follow [`SECURITY.md`](SECURITY.md) for private disclosure.
+* Design notes: the full product rationale lives in [`QuickMarkdown_PRD.md`](QuickMarkdown_PRD.md).
 
 ---
 
@@ -171,4 +83,4 @@ Found a vulnerability? Please **do not** file a public issue — see [`SECURITY.
 
 [MIT](LICENSE) © 2026 Neil Johnson
 
-Built with [`swift-markdown`](https://github.com/apple/swift-markdown) (Apache 2.0). OpenDyslexic font (when installed by the user) is © Abelardo Gonzalez under [SIL Open Font License 1.1](https://opendyslexic.org/about).
+Built with [`swift-markdown`](https://github.com/apple/swift-markdown) (Apache 2.0). OpenDyslexic font, when installed, © Abelardo Gonzalez under [SIL Open Font License 1.1](https://opendyslexic.org/about).

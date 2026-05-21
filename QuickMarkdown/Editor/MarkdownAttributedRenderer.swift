@@ -45,7 +45,10 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
     // MARK: - Public entry point
 
     static func render(_ source: String, baseURL: URL? = nil) -> NSAttributedString {
-        let cleaned = rewriteDocsImageDirectives(in: stripFrontMatter(source))
+        let cleaned = rewriteFootnotes(
+            in: rewriteDocsImageDirectives(in: stripFrontMatter(source)),
+            style: .plain
+        )
         let document = Document(parsing: cleaned, options: [.parseBlockDirectives])
         var renderer = MarkdownAttributedRenderer(baseURL: baseURL)
         let body = NSMutableAttributedString(attributedString: renderer.visit(document))
@@ -65,7 +68,10 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
     /// item instead of pasting literal "- " text.
     static func renderForPasteboard(_ source: String,
                                     baseURL: URL? = nil) -> NSAttributedString {
-        let cleaned = rewriteDocsImageDirectives(in: stripFrontMatter(source))
+        let cleaned = rewriteFootnotes(
+            in: rewriteDocsImageDirectives(in: stripFrontMatter(source)),
+            style: .plain
+        )
         let document = Document(parsing: cleaned, options: [.parseBlockDirectives])
         var renderer = MarkdownAttributedRenderer(baseURL: baseURL, forPasteboard: true)
         let body = NSMutableAttributedString(attributedString: renderer.visit(document))
@@ -161,6 +167,197 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
                 }
             }
             result[name] = value
+        }
+        return result
+    }
+
+    /// Output flavour for `rewriteFootnotes(in:style:)`.
+    enum FootnoteOutputStyle: Sendable {
+        /// Inline `<sup id=…><a href=…>N</a></sup>` references and a
+        /// footnotes section anchored with `<span id=…>` markers, so
+        /// clicking a reference in the WKWebView jumps to the definition
+        /// and the back-link returns. Used by `HTMLRenderer` and the
+        /// live preview.
+        case html
+        /// Plain `[N]` bracketed references and an unanchored numbered
+        /// list at the bottom. Used by the attributed-string renderer so
+        /// pasted RTF and spoken text stay readable instead of leaking
+        /// raw HTML tags.
+        case plain
+    }
+
+    /// swift-markdown doesn't parse GFM / Pandoc footnotes (`[^label]`
+    /// references with `[^label]:` definitions), so the raw markers leak
+    /// into the rendered output as literal text. This rewrites the source
+    /// into a form the rest of the pipeline can render:
+    ///
+    /// * Definitions are gathered (including indented continuation lines
+    ///   for multi-paragraph bodies) and removed from the source.
+    /// * References are numbered in order of first appearance and rewritten
+    ///   per `style`.
+    /// * A `**Footnotes**` section is appended at the end with the bodies.
+    ///
+    /// Refs without a matching definition are left untouched so the user
+    /// notices the typo. Refs inside fenced code blocks are also left
+    /// untouched.
+    nonisolated static func rewriteFootnotes(in source: String,
+                                              style: FootnoteOutputStyle = .html) -> String {
+        let lines = source.components(separatedBy: "\n")
+
+        // Pass 1 — extract definitions, collect remaining lines.
+        let defRegex = try! NSRegularExpression(
+            pattern: #"^\[\^([^\]\s]+)\]:\s?(.*)$"#
+        )
+        var definitions: [String: String] = [:]
+        var nonDef: [String] = []
+        nonDef.reserveCapacity(lines.count)
+
+        var inFence = false
+        var i = 0
+        while i < lines.count {
+            let line = lines[i]
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if !inFence {
+                let ns = line as NSString
+                if let m = defRegex.firstMatch(
+                    in: line,
+                    range: NSRange(location: 0, length: ns.length)
+                ) {
+                    let label = ns.substring(with: m.range(at: 1))
+                    var body = ns.substring(with: m.range(at: 2))
+                    // Gather indented continuation lines so multi-paragraph
+                    // footnotes survive.
+                    var j = i + 1
+                    while j < lines.count {
+                        let next = lines[j]
+                        let nextTrim = next.trimmingCharacters(in: .whitespaces)
+                        if next.hasPrefix("    ") {
+                            body += "\n" + String(next.dropFirst(4))
+                            j += 1
+                        } else if next.hasPrefix("\t") {
+                            body += "\n" + String(next.dropFirst())
+                            j += 1
+                        } else if nextTrim.isEmpty {
+                            // Blank line — only counts as continuation if the
+                            // next non-blank line is also indented.
+                            var k = j + 1
+                            while k < lines.count,
+                                  lines[k].trimmingCharacters(in: .whitespaces).isEmpty {
+                                k += 1
+                            }
+                            if k < lines.count,
+                               lines[k].hasPrefix("    ") || lines[k].hasPrefix("\t") {
+                                body += "\n\n"
+                                j = k
+                                continue
+                            }
+                            break
+                        } else {
+                            break
+                        }
+                    }
+                    definitions[label] = body.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    )
+                    i = j
+                    continue
+                }
+            }
+
+            if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
+                inFence.toggle()
+            }
+            nonDef.append(line)
+            i += 1
+        }
+
+        if definitions.isEmpty { return source }
+
+        // Pass 2 — rewrite references in first-appearance order.
+        let refRegex = try! NSRegularExpression(pattern: #"\[\^([^\]\s]+)\]"#)
+        var orderedLabels: [String] = []
+        var labelNumber: [String: Int] = [:]
+        var labelSeenCount: [String: Int] = [:]
+        var inFence2 = false
+        var processed: [String] = []
+        processed.reserveCapacity(nonDef.count)
+
+        for line in nonDef {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
+                inFence2.toggle()
+                processed.append(line)
+                continue
+            }
+            if inFence2 {
+                processed.append(line)
+                continue
+            }
+            let ns = line as NSString
+            let matches = refRegex.matches(
+                in: line, range: NSRange(location: 0, length: ns.length)
+            )
+            if matches.isEmpty {
+                processed.append(line)
+                continue
+            }
+            var out = ""
+            var cursor = 0
+            for m in matches {
+                let label = ns.substring(with: m.range(at: 1))
+                guard definitions[label] != nil else { continue }
+                let pre = ns.substring(with: NSRange(
+                    location: cursor,
+                    length: m.range.location - cursor
+                ))
+                out += pre
+                if labelNumber[label] == nil {
+                    orderedLabels.append(label)
+                    labelNumber[label] = orderedLabels.count
+                }
+                let n = labelNumber[label]!
+                let occ = (labelSeenCount[label] ?? 0) + 1
+                labelSeenCount[label] = occ
+                switch style {
+                case .html:
+                    let refId = (occ == 1) ? "fnref-\(n)" : "fnref-\(n)-\(occ)"
+                    out += "<sup id=\"\(refId)\"><a href=\"#fn-\(n)\">\(n)</a></sup>"
+                case .plain:
+                    out += "[\(n)]"
+                }
+                cursor = m.range.location + m.range.length
+            }
+            if cursor < ns.length {
+                out += ns.substring(from: cursor)
+            }
+            processed.append(out)
+        }
+
+        if orderedLabels.isEmpty {
+            return nonDef.joined(separator: "\n")
+        }
+
+        // Pass 3 — append the footnotes section.
+        var result = processed.joined(separator: "\n")
+        while result.hasSuffix("\n") { result.removeLast() }
+        result += "\n\n---\n\n**Footnotes**\n"
+        for (idx, label) in orderedLabels.enumerated() {
+            let n = idx + 1
+            var body = definitions[label] ?? ""
+            switch style {
+            case .html:
+                // Collapse multi-paragraph bodies onto a single paragraph
+                // so the back-link stays attached. `<br><br>` keeps the
+                // visual paragraph break inside the same block-level item.
+                body = body.replacingOccurrences(of: "\n\n", with: "<br><br>")
+                body = body.replacingOccurrences(of: "\n", with: " ")
+                result += "\n<span id=\"fn-\(n)\"></span>**\(n).** \(body) [↩](#fnref-\(n))\n"
+            case .plain:
+                body = body.replacingOccurrences(of: "\n\n", with: " ")
+                body = body.replacingOccurrences(of: "\n", with: " ")
+                result += "\n\(n). \(body)\n"
+            }
         }
         return result
     }

@@ -116,4 +116,63 @@ final class QuickMarkdownDocumentController: NSDocumentController {
     }
 }
 
+// MARK: - Drag-and-drop helpers
+
+extension QuickMarkdownDocumentController {
+
+    /// File extensions we accept as document drops (from windows or the Dock
+    /// tile). Kept in sync with `CFBundleDocumentTypes` in Info.plist.
+    static let droppableMarkdownExtensions: Set<String> = ["md", "markdown"]
+
+    /// Pulls markdown file URLs out of a dragging pasteboard. Returns `nil`
+    /// when the drag carries no markdown file, so callers can cleanly fall
+    /// through to whatever default drop behaviour the view has (text
+    /// insertion for the editor, navigation for the web preview, etc.).
+    ///
+    /// Implementation note: we deliberately avoid
+    /// `readObjects(forClasses: [NSURL.self], options:)` here. That call
+    /// constructs `NSURL` objects from the pasteboard, which triggers
+    /// file coordination / `stat()` on each URL — and on network mounts,
+    /// iCloud placeholders, or slow DFS shares that synchronously stalls
+    /// the main thread for several seconds (visible as a beach-ball while
+    /// the user is just hovering a drag over the window). Instead we read
+    /// the file URL as a string per pasteboard item (which Finder writes
+    /// eagerly into the in-memory pasteboard) and parse it. No I/O.
+    static func markdownURLs(in sender: any NSDraggingInfo) -> [URL]? {
+        let pb = sender.draggingPasteboard
+        // Cheap bail-out: nothing on the pasteboard can be read as a file
+        // URL. `canReadItem(withDataConformingToTypes:)` only checks the
+        // type list; it does not materialise any data.
+        let fileURLType = NSPasteboard.PasteboardType.fileURL.rawValue
+        guard pb.canReadItem(withDataConformingToTypes: [fileURLType]),
+              let items = pb.pasteboardItems
+        else { return nil }
+
+        var mdURLs: [URL] = []
+        for item in items {
+            guard let urlString = item.string(forType: .fileURL),
+                  let url = URL(string: urlString),
+                  url.isFileURL
+            else { continue }
+            if droppableMarkdownExtensions.contains(url.pathExtension.lowercased()) {
+                mdURLs.append(url)
+            }
+        }
+        return mdURLs.isEmpty ? nil : mdURLs
+    }
+
+    /// Open the supplied markdown URLs. Routes through the standard
+    /// `openDocument(withContentsOf:display:completionHandler:)` so the
+    /// existing "replace the empty untitled window if there is one, else
+    /// spawn a new one" logic in `openDocument` applies uniformly to
+    /// File > Open, Dock drops, and in-window drops.
+    @MainActor
+    static func openMarkdownURLs(_ urls: [URL]) {
+        let controller = NSDocumentController.shared
+        for url in urls {
+            controller.openDocument(withContentsOf: url, display: true) { _, _, _ in }
+        }
+    }
+}
+
 

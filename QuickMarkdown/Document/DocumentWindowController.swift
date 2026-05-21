@@ -43,6 +43,16 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
     private nonisolated(unsafe) var conflictObserver: NSObjectProtocol?
     private nonisolated(unsafe) var textChangeObserver: NSObjectProtocol?
 
+    /// Watches the document's containing folder so changes to sibling
+    /// assets (linked images, etc.) trigger a preview refresh. The `.md`
+    /// file itself is still handled by `MarkdownDocument`'s NSFilePresenter.
+    private var mediaWatcher: MediaWatcher?
+
+    /// Last folder URL we passed to `mediaWatcher.start(watching:)`. Used
+    /// to avoid restarting the source when nothing has changed (e.g. on
+    /// repeated `wireDocument()` calls).
+    private var watchedMediaFolder: URL?
+
     /// Debounced status-bar refresh trigger so we don't allocate formatters
     /// on every keystroke.
     private var pendingStatusRefresh: DispatchWorkItem?
@@ -177,6 +187,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
         banner.onKeep = { [weak self] in
             self?.handleBannerKeep()
         }
+
+        // Route preview task-checkbox clicks back into the editor so the
+        // source `[ ]` / `[x]` marker flips through the normal text-change
+        // plumbing (undo, dirty flag, preview-stale flag, status bar).
+        preview.onTaskToggle = { [weak self] index in
+            self?.editor.toggleTaskItem(at: index)
+        }
     }
 
     private func wireDocument() {
@@ -227,6 +244,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
         }
 
         refreshStatusBar()
+        startWatchingMediaFolder(for: doc)
 
         // Default landing mode: if the document was loaded from a file (i.e.
         // there's actual content to look at), greet the user with the
@@ -245,6 +263,52 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
         externalChangeObserver = nil
         conflictObserver = nil
         textChangeObserver = nil
+        mediaWatcher?.stop()
+        mediaWatcher = nil
+        watchedMediaFolder = nil
+    }
+
+    // MARK: - Sibling-asset watching
+
+    /// Start (or restart) a `MediaWatcher` on the document's containing
+    /// folder. Called once after `wireDocument` and again if the document's
+    /// `fileURL` changes (e.g. Save As).
+    private func startWatchingMediaFolder(for doc: MarkdownDocument) {
+        guard let url = doc.fileURL else {
+            mediaWatcher?.stop()
+            mediaWatcher = nil
+            watchedMediaFolder = nil
+            return
+        }
+        let folder = url.deletingLastPathComponent()
+        if let existing = watchedMediaFolder, existing == folder, mediaWatcher != nil {
+            return
+        }
+        mediaWatcher?.stop()
+        let watcher = MediaWatcher { [weak self] in
+            self?.handleMediaFolderChange()
+        }
+        watcher.start(watching: folder)
+        mediaWatcher = watcher
+        watchedMediaFolder = folder
+    }
+
+    /// Fired (debounced, on main) when something in the document's folder
+    /// changes on disk — typically a sibling image being re-saved.
+    @MainActor
+    private func handleMediaFolderChange() {
+        // Drop the in-process image cache so the next render re-reads bytes.
+        ImageLoader.clearCache()
+        guard let doc = markdownDocument else { return }
+        // The preview inlines images as base64 on every render, so the
+        // cheapest refresh is a full re-render. If the user is in Source
+        // mode we just mark stale and let the eventual switch re-render.
+        if currentMode == .preview {
+            preview.render(source: doc.content,
+                           baseURL: doc.fileURL?.deletingLastPathComponent())
+        } else {
+            preview.isStale = true
+        }
     }
 
     // MARK: - Window mode (Preview / Source)
@@ -267,23 +331,58 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func applyWindowMode(_ mode: WindowMode) {
-        currentMode = mode
-        modeSegmented.selectedSegment = (mode == .preview) ? 0 : 1
+        // Switching between Preview and Source should land the user at the
+        // same vertical position in the document so they can pick up where
+        // they were reading or editing. We capture a 0...1 scroll fraction
+        // from the outgoing view and apply it to the incoming one.
+        //
+        // The editor's fraction is available synchronously (NSScrollView
+        // bounds). The preview's fraction lives inside WKWebView and has to
+        // be read async via JavaScript, so the preview -> source path does
+        // the view swap inside the JS completion handler — that way the user
+        // sees a single view transition rather than two (swap-then-jump).
+        if currentMode == .preview && mode == .source {
+            preview.currentScrollFraction { [weak self] frac in
+                guard let self else { return }
+                self.completeSwitch(to: .source, withFraction: frac)
+            }
+            return
+        }
+
+        let editorFraction = editor.scrollFraction
         switch mode {
         case .preview:
+            currentMode = mode
+            modeSegmented.selectedSegment = 0
             if preview.isStale, let doc = markdownDocument {
+                // Re-render anyway, but tell the preview to land at the
+                // editor's scroll fraction once the new HTML loads.
                 preview.render(source: doc.content,
-                               baseURL: doc.fileURL?.deletingLastPathComponent())
+                               baseURL: doc.fileURL?.deletingLastPathComponent(),
+                               scrollFraction: editorFraction)
+            } else {
+                preview.applyScrollFraction(editorFraction)
             }
             preview.view.isHidden = false
             editor.view.isHidden = true
             window?.makeFirstResponder(preview.view)
         case .source:
-            editor.displayMode = .plainSource
-            editor.view.isHidden = false
-            preview.view.isHidden = true
-            window?.makeFirstResponder(editor.textView)
+            // Source -> Source (no-op visual) but still keep state coherent.
+            completeSwitch(to: .source, withFraction: editorFraction)
         }
+        invalidateFormatToolbarItems()
+    }
+
+    /// Shared tail of `applyWindowMode` for the Source destination, used by
+    /// both the sync (Source -> Source) and async (Preview -> Source) paths.
+    private func completeSwitch(to mode: WindowMode, withFraction fraction: Double) {
+        currentMode = mode
+        modeSegmented.selectedSegment = (mode == .preview) ? 0 : 1
+        editor.displayMode = .plainSource
+        editor.view.isHidden = false
+        preview.view.isHidden = true
+        editor.applyScrollFraction(fraction)
+        window?.makeFirstResponder(editor.textView)
         invalidateFormatToolbarItems()
     }
 
@@ -300,6 +399,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
     private static let listItemIdentifier    = NSToolbarItem.Identifier("QMD.list")
     private static let linkItemIdentifier    = NSToolbarItem.Identifier("QMD.link")
     private static let codeItemIdentifier    = NSToolbarItem.Identifier("QMD.code")
+    private static let tableItemIdentifier   = NSToolbarItem.Identifier("QMD.table")
     private static let exportItemIdentifier  = NSToolbarItem.Identifier("QMD.exportPDF")
     private static let readingItemIdentifier = NSToolbarItem.Identifier("QMD.reading")
     private static let speakItemIdentifier   = NSToolbarItem.Identifier("QMD.speak")
@@ -331,6 +431,18 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
     @objc private func toolbarLink(_ sender: Any?)    { runFormatAction { $0.formatLink(sender) } }
     @objc private func toolbarCode(_ sender: Any?)    { runFormatAction { $0.formatCode(sender) } }
     @objc private func toolbarList(_ sender: Any?)    { runFormatAction { $0.formatUnorderedList(sender) } }
+
+    /// Insert Table is special: the picker is presented asynchronously,
+    /// so we can't use `runFormatAction` (which would switch back to
+    /// preview mode before the user has picked a size). Switch to Source
+    /// mode if needed and leave it there so the user can immediately
+    /// type into the new table.
+    @objc private func toolbarInsertTable(_ sender: Any?) {
+        if currentMode == .preview {
+            applyWindowMode(.source)
+        }
+        editor.insertTable(sender)
+    }
 
     @objc private func toolbarHeading(_ sender: NSPopUpButton) {
         // Item 0 is the placeholder title row; items 1..3 are H1..H3.
@@ -709,6 +821,12 @@ extension DocumentWindowController: NSToolbarDelegate {
                                   label: "Code",
                                   tooltip: "Inline code (⌘E)",
                                   action: #selector(toolbarCode(_:)))
+        case Self.tableItemIdentifier:
+            return makeFormatItem(itemIdentifier,
+                                  symbol: "tablecells",
+                                  label: "Table",
+                                  tooltip: "Insert table (⌥⌘T)",
+                                  action: #selector(toolbarInsertTable(_:)))
         case Self.exportItemIdentifier:
             return makeImageItem(itemIdentifier,
                                  symbol: "arrow.up.doc",
@@ -795,6 +913,7 @@ extension DocumentWindowController: NSToolbarDelegate {
             Self.listItemIdentifier,
             Self.linkItemIdentifier,
             Self.codeItemIdentifier,
+            Self.tableItemIdentifier,
             .space,
             Self.exportItemIdentifier,
             Self.readingItemIdentifier,
@@ -819,6 +938,7 @@ extension DocumentWindowController: NSToolbarDelegate {
             Self.listItemIdentifier,
             Self.linkItemIdentifier,
             Self.codeItemIdentifier,
+            Self.tableItemIdentifier,
             Self.exportItemIdentifier,
             Self.readingItemIdentifier,
             Self.speakItemIdentifier,

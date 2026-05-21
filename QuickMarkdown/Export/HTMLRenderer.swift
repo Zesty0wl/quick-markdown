@@ -18,6 +18,12 @@ struct HTMLRenderer: MarkupVisitor {
     /// to their original `src` (which may not load in downstream consumers).
     private let baseURL: URL?
 
+    /// Running count of task-list items encountered during the AST walk.
+    /// Stamped onto each task `<input>` as `data-task-index="N"` so the live
+    /// preview can map a click back to the Nth `- [ ]` / `- [x]` marker in
+    /// the source. (Export consumers like Word / PDF ignore the attribute.)
+    private var taskItemCounter: Int = 0
+
     init(baseURL: URL? = nil) {
         self.baseURL = baseURL
     }
@@ -46,11 +52,16 @@ struct HTMLRenderer: MarkupVisitor {
     // MARK: - Public entry point
 
     static func renderDocument(_ markdown: String, baseURL: URL? = nil) -> String {
-        // Match the live preview's preprocessing: drop YAML front matter and
+        // Match the live preview's preprocessing: drop YAML front matter,
         // rewrite Docs/Learn `:::image:::` directives into standard Markdown
-        // images so the rest of the pipeline picks them up.
-        let cleaned = MarkdownAttributedRenderer.rewriteDocsImageDirectives(
-            in: MarkdownAttributedRenderer.stripFrontMatter(markdown)
+        // images, and rewrite GFM-style `[^foo]` footnotes (which swift-
+        // markdown doesn't parse) into inline HTML refs + a footnotes
+        // section, so the rest of the pipeline picks them up.
+        let cleaned = MarkdownAttributedRenderer.rewriteFootnotes(
+            in: MarkdownAttributedRenderer.rewriteDocsImageDirectives(
+                in: MarkdownAttributedRenderer.stripFrontMatter(markdown)
+            ),
+            style: .html
         )
         let document = Document(parsing: cleaned)
         var renderer = HTMLRenderer(baseURL: baseURL)
@@ -122,8 +133,13 @@ struct HTMLRenderer: MarkupVisitor {
     }
 
     mutating func visitHTMLBlock(_ html: HTMLBlock) -> String {
-        // Pass raw HTML through unchanged (matches CommonMark semantics).
-        html.rawHTML
+        // Pass raw HTML through, but rewrite any `<img src="…">` so local
+        // sources are base64-inlined the same way Markdown `![]()` images
+        // are. Without this, an `<img>` inside a `<div align="center">`
+        // (commonly used for centred README hero shots) renders as a
+        // broken-image placeholder in the sandboxed preview because
+        // WKWebView can't pick the file up off disk.
+        rewriteImageSources(in: html.rawHTML)
     }
 
     mutating func visitThematicBreak(_ thematicBreak: ThematicBreak) -> String {
@@ -141,11 +157,38 @@ struct HTMLRenderer: MarkupVisitor {
     }
 
     mutating func visitListItem(_ listItem: ListItem) -> String {
-        let inner = visitChildren(listItem)
+        // Task list items (GFM `- [ ]` / `- [x]`) need two things to render
+        // correctly in both the preview WebView and downstream consumers
+        // like Word / Outlook:
+        //
+        // 1. **No bullet.** We hide it via inline `list-style:none;` for the
+        //    export pipeline AND via a `task-list-item` class for the live
+        //    preview, because `PreviewViewController.renderBody()` strips
+        //    all inline `style="..."` attributes (so the class is the only
+        //    thing that survives the round-trip).
+        // 2. **Inline content.** swift-markdown wraps a tight list item's
+        //    text in a `Paragraph`, which becomes a block-level `<p>`. An
+        //    inline `<input type="checkbox">` followed by a block `<p>`
+        //    breaks onto two lines. So when the item has a single Paragraph
+        //    child we unwrap it, matching GitHub's HTML output.
         if let checked = listItem.checkbox {
+            let inner: String
+            if listItem.childCount == 1,
+               let para = listItem.child(at: 0) as? Paragraph {
+                inner = visitChildren(para)
+            } else {
+                inner = visitChildren(listItem)
+            }
             let mark = checked == .checked ? "checked" : ""
-            return "<li style=\"\(liCSS)list-style:none;\"><input type=\"checkbox\" \(mark) disabled style=\"margin-right:6px;\">\(inner)</li>\n"
+            let taskIndex = taskItemCounter
+            taskItemCounter += 1
+            // `disabled` keeps the checkbox non-interactive for export
+            // consumers (Word, Outlook, PDF). The live preview strips it on
+            // load and wires up its own click handler — see `renderHTML` in
+            // `PreviewViewController`.
+            return "<li class=\"task-list-item\" style=\"\(liCSS)list-style:none;\"><input type=\"checkbox\" \(mark) disabled data-task-index=\"\(taskIndex)\" style=\"margin-right:6px;vertical-align:middle;\">\(inner)</li>\n"
         }
+        let inner = visitChildren(listItem)
         return "<li style=\"\(liCSS)\">\(inner)</li>\n"
     }
 
@@ -186,7 +229,10 @@ struct HTMLRenderer: MarkupVisitor {
     }
 
     mutating func visitInlineHTML(_ inlineHTML: InlineHTML) -> String {
-        inlineHTML.rawHTML
+        // Same image-inlining treatment as `visitHTMLBlock` so inline
+        // `<img>` tags (e.g. inside a paragraph) also resolve to base64
+        // data URLs in the sandboxed preview.
+        rewriteImageSources(in: inlineHTML.rawHTML)
     }
 
     mutating func visitEmphasis(_ emphasis: Emphasis) -> String {
@@ -218,10 +264,65 @@ struct HTMLRenderer: MarkupVisitor {
         } else {
             resolvedSrc = Self.escapeAttr(rawSrc)
         }
-        return "<img src=\"\(resolvedSrc)\" alt=\"\(alt)\"\(title) style=\"max-width:100%;height:auto;display:block;margin:8px 0;\">"
+        // `display:inline-block` (not `block`) so consecutive images in a
+        // single paragraph — most obviously a row of README badges — flow
+        // inline the way GitHub and most CommonMark renderers display them.
+        // `vertical-align:middle` removes the baseline gap that inline-level
+        // images otherwise leave below themselves. Standalone images still
+        // sit on their own line because the surrounding `<p>` is block.
+        return "<img src=\"\(resolvedSrc)\" alt=\"\(alt)\"\(title) style=\"max-width:100%;height:auto;display:inline-block;vertical-align:middle;\">"
     }
 
     // MARK: - Image inlining
+
+    /// Find every `<img src="…">` (or single-quoted variant) in `raw` and
+    /// rewrite the `src` to a `data:` URL when it resolves to a readable
+    /// local file. Used by both `visitHTMLBlock` (block-level raw HTML) and
+    /// `visitInlineHTML` (inline raw HTML) so raw-HTML images get the same
+    /// sandbox-friendly inlining treatment as Markdown `![]()` images.
+    /// Remote sources, data: URLs, and unresolved paths are left alone.
+    private func rewriteImageSources(in raw: String) -> String {
+        let pattern = #"(<img\b[^>]*?\bsrc\s*=\s*)(?:"([^"]+)"|'([^']+)')([^>]*>)"#
+        guard let regex = try? NSRegularExpression(
+            pattern: pattern,
+            options: [.caseInsensitive, .dotMatchesLineSeparators]
+        ) else {
+            return raw
+        }
+        let ns = raw as NSString
+        let matches = regex.matches(
+            in: raw,
+            range: NSRange(location: 0, length: ns.length)
+        )
+        if matches.isEmpty { return raw }
+        var out = ""
+        out.reserveCapacity(raw.count)
+        var cursor = 0
+        for m in matches {
+            out += ns.substring(with: NSRange(
+                location: cursor,
+                length: m.range.location - cursor
+            ))
+            let prefix = ns.substring(with: m.range(at: 1))
+            let dqRange = m.range(at: 2)
+            let sqRange = m.range(at: 3)
+            let src: String
+            if dqRange.location != NSNotFound {
+                src = ns.substring(with: dqRange)
+            } else if sqRange.location != NSNotFound {
+                src = ns.substring(with: sqRange)
+            } else {
+                src = ""
+            }
+            let suffix = ns.substring(with: m.range(at: 4))
+            let newSrc = inlineDataURL(forSource: src) ?? src
+            // Always re-emit with double quotes for consistency.
+            out += "\(prefix)\"\(Self.escapeAttr(newSrc))\"\(suffix)"
+            cursor = m.range.location + m.range.length
+        }
+        out += ns.substring(from: cursor)
+        return out
+    }
 
     /// Resolve `source` (URL/path) against `baseURL`, read the bytes, and
     /// return a `data:<mime>;base64,...` URL. Returns nil for remote sources,
@@ -253,14 +354,21 @@ struct HTMLRenderer: MarkupVisitor {
             return URL(fileURLWithPath: source)
         }
         guard let baseURL else { return nil }
-        let encoded = source.addingPercentEncoding(
+        // Normalise the source: decode any existing percent-encoding (so a
+        // pre-encoded `media/night%20sky.png` written by the author becomes
+        // `media/night sky.png`), then re-encode for URL parsing. Without
+        // the decode step `addingPercentEncoding` treats the leading `%`
+        // as a literal and produces `%2520`, which resolves to a file that
+        // doesn't exist on disk.
+        let decoded = source.removingPercentEncoding ?? source
+        let encoded = decoded.addingPercentEncoding(
             withAllowedCharacters: .urlPathAllowed
         ) ?? source
         if let resolved = URL(string: encoded, relativeTo: baseURL)?.absoluteURL,
            resolved.isFileURL {
             return resolved
         }
-        return baseURL.appendingPathComponent(source)
+        return baseURL.appendingPathComponent(decoded)
     }
 
     private static func mimeType(forPathExtension ext: String) -> String {

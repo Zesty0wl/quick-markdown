@@ -72,6 +72,14 @@ final class EditorViewController: NSViewController {
 
         // Build the TextKit 1 chain: storage -> layoutManager -> container.
         textStorage.addLayoutManager(layoutManager)
+        // Crucial for large documents: allow the layout manager to lay out
+        // arbitrary ranges (just the visible region) without first laying
+        // out everything that precedes it. Without this flag, the very
+        // first display pass on a multi-MB markdown file forces TextKit to
+        // build glyph runs and line fragments for the entire document up
+        // front — 100% main-thread CPU and 10x memory before the window
+        // appears.
+        layoutManager.allowsNonContiguousLayout = true
         textContainer.widthTracksTextView = true
         textContainer.containerSize = NSSize(width: MarkdownStyles.contentMaxWidth,
                                              height: CGFloat.greatestFiniteMagnitude)
@@ -106,9 +114,15 @@ final class EditorViewController: NSViewController {
         textView.typingAttributes = MarkdownStyles.defaultAttributes
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        // Use legacy (always-visible) scrollers rather than overlay scrollers.
+        // The macOS overlay style auto-hides when not actively scrolling, and
+        // for a document editor we want the user to see scroll position at all
+        // times — especially after switching modes (Preview <-> Source) where
+        // they need a quick orientation cue.
+        scrollView.scrollerStyle = .legacy
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
-        scrollView.autohidesScrollers = true
+        scrollView.autohidesScrollers = false
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = true
         scrollView.backgroundColor = ReadingPreferences.shared.theme.background
@@ -234,15 +248,22 @@ final class EditorViewController: NSViewController {
 
         textStorage.forceRestyle()
 
-        // Restore or follow scroll. We need a layout pass so the new content
-        // height is realised before computing the new origin.
-        layoutManager.ensureLayout(for: textContainer)
-        textView.needsLayout = true
-        textView.layoutSubtreeIfNeeded()
-
+        // Restore or follow scroll. Both branches need a layout pass so the
+        // new content height is realised before computing the new origin.
+        // The initial-load path (`resetCursor == true && followBottom ==
+        // false`) deliberately skips the layout pass: forcing TextKit to
+        // lay out the entire buffer up front pegs CPU at 100% and balloons
+        // memory on large files. Without it, AppKit lays out the visible
+        // region lazily on first display, which is what we want.
         if followBottom {
+            layoutManager.ensureLayout(for: textContainer)
+            textView.needsLayout = true
+            textView.layoutSubtreeIfNeeded()
             scrollToBottom()
         } else if !resetCursor {
+            layoutManager.ensureLayout(for: textContainer)
+            textView.needsLayout = true
+            textView.layoutSubtreeIfNeeded()
             // Preserve the scroll origin (clamped to the new content size).
             let maxY = max(0, textView.frame.height
                            - scrollView.contentView.bounds.height)
@@ -257,6 +278,75 @@ final class EditorViewController: NSViewController {
                        - scrollView.contentView.bounds.height)
         scrollView.contentView.scroll(to: NSPoint(x: 0, y: maxY))
         scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
+    // MARK: - Scroll position (Preview <-> Source sync)
+
+    /// Current vertical scroll position as a fraction in `0...1` of the
+    /// scrollable range. Returns `0` if the document is shorter than the
+    /// viewport (nothing to scroll).
+    var scrollFraction: Double {
+        guard let docView = scrollView.documentView else { return 0 }
+        let visible = scrollView.contentView.bounds
+        let denom = docView.bounds.height - visible.height
+        guard denom > 1 else { return 0 }
+        return Double(max(0, min(visible.minY, denom)) / denom)
+    }
+
+    /// Scroll so the visible top sits at `fraction` of the scrollable range.
+    /// Forces a layout pass first so the call works correctly even when the
+    /// view was just un-hidden by a mode switch.
+    func applyScrollFraction(_ fraction: Double) {
+        view.layoutSubtreeIfNeeded()
+        layoutManager.ensureLayout(for: textContainer)
+        textView.layoutSubtreeIfNeeded()
+        guard let docView = scrollView.documentView else { return }
+        let visible = scrollView.contentView.bounds
+        let denom = docView.bounds.height - visible.height
+        guard denom > 0 else { return }
+        let y = max(0, min(CGFloat(fraction) * denom, denom))
+        scrollView.contentView.scroll(to: NSPoint(x: visible.minX, y: y))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
+    // MARK: - Task list toggling (from Preview)
+
+    /// Flip the state of the Nth task-list checkbox in the source. `index`
+    /// is provided by the preview, which counts task items in document /
+    /// AST order; the same order matches the line order of GFM task markers
+    /// in the source, so we just find the Nth match of the marker regex and
+    /// flip its single inner character (`x` <-> ` `).
+    ///
+    /// The mutation goes through `shouldChangeText` / `didChangeText` so it
+    /// is undoable and triggers `NSText.didChangeNotification` — which the
+    /// window controller observes to mark the preview stale and which the
+    /// `textDidChange` delegate uses to write back to the document.
+    func toggleTaskItem(at index: Int) {
+        guard index >= 0 else { return }
+        let source = textStorage.string as NSString
+        // GFM task marker: optional indent, list bullet (`-`, `*`, `+`),
+        // whitespace, `[` + (space|x|X) + `]`. Captures the single inner
+        // character so we can target it precisely.
+        let pattern = #"^[ \t]*[-*+][ \t]+\[([ xX])\]"#
+        guard let regex = try? NSRegularExpression(
+            pattern: pattern,
+            options: [.anchorsMatchLines]
+        ) else { return }
+        let matches = regex.matches(
+            in: source as String,
+            range: NSRange(location: 0, length: source.length)
+        )
+        guard index < matches.count else { return }
+        let innerRange = matches[index].range(at: 1)
+        guard innerRange.location != NSNotFound,
+              innerRange.length == 1,
+              source.length >= innerRange.location + innerRange.length else { return }
+        let current = source.substring(with: innerRange)
+        let replacement = (current == " ") ? "x" : " "
+        guard textView.shouldChangeText(in: innerRange,
+                                        replacementString: replacement) else { return }
+        textStorage.replaceCharacters(in: innerRange, with: replacement)
+        textView.didChangeText()
     }
 }
 
@@ -293,6 +383,140 @@ extension EditorViewController: NSTextViewDelegate {
             return true
         }
         return false
+    }
+
+    /// Cell-aware Tab / Shift-Tab / Return navigation when the caret is
+    /// inside a Markdown table. Tab moves to the next cell (and adds a
+    /// new row when invoked from the last cell). Shift-Tab goes back.
+    /// Return at the end of the last row also adds a row. Anywhere
+    /// else, returns `false` so AppKit's default key handling runs.
+    func textView(_ textView: NSTextView,
+                  doCommandBy commandSelector: Selector) -> Bool {
+        let source = textStorage.string
+        let caret = textView.selectedRange().location
+        guard let block = TableEditing.block(at: caret, in: source) else {
+            return false
+        }
+        switch commandSelector {
+        case #selector(NSStandardKeyBindingResponding.insertTab(_:)):
+            return handleTabKeyInTable(forward: true, block: block, source: source, caret: caret)
+        case #selector(NSStandardKeyBindingResponding.insertBacktab(_:)):
+            return handleTabKeyInTable(forward: false, block: block, source: source, caret: caret)
+        case #selector(NSStandardKeyBindingResponding.insertNewline(_:)):
+            return handleReturnKeyInTable(block: block, source: source, caret: caret)
+        default:
+            return false
+        }
+    }
+
+    private func handleTabKeyInTable(forward: Bool,
+                                     block: TableEditing.Block,
+                                     source: String,
+                                     caret: Int) -> Bool {
+        guard let (row, col) = TableEditing.cell(at: caret, in: block, source: source) else {
+            return false
+        }
+        let totalRows = block.rows.count
+        let totalCols = block.columnCount
+        var nextRow = row
+        var nextCol = col
+        if forward {
+            if col + 1 < totalCols {
+                nextCol = col + 1
+            } else if row + 1 < totalRows {
+                nextRow = row + 1
+                nextCol = 0
+            } else {
+                addRowAndPlaceCaret(in: block)
+                return true
+            }
+        } else {
+            if col > 0 {
+                nextCol = col - 1
+            } else if row > 0 {
+                nextRow = row - 1
+                nextCol = totalCols - 1
+            } else {
+                return true // already in first cell; swallow
+            }
+        }
+        if let target = TableEditing.caretAtCellStart(row: nextRow,
+                                                     col: nextCol,
+                                                     in: block,
+                                                     source: source) {
+            // Select the existing cell text so typing replaces it
+            // (Word/Excel/Pages convention on Tab navigation).
+            if let end = TableEditing.caretAtCellEnd(row: nextRow,
+                                                    col: nextCol,
+                                                    in: block,
+                                                    source: source),
+               end > target {
+                textView.setSelectedRange(NSRange(location: target, length: end - target))
+            } else {
+                textView.setSelectedRange(NSRange(location: target, length: 0))
+            }
+        }
+        return true
+    }
+
+    private func handleReturnKeyInTable(block: TableEditing.Block,
+                                        source: String,
+                                        caret: Int) -> Bool {
+        guard let (row, _) = TableEditing.cell(at: caret, in: block, source: source) else {
+            return false
+        }
+        let totalRows = block.rows.count
+        if row + 1 < totalRows {
+            // Jump to start of next row's first cell.
+            if let target = TableEditing.caretAtCellStart(row: row + 1,
+                                                         col: 0,
+                                                         in: block,
+                                                         source: source) {
+                textView.setSelectedRange(NSRange(location: target, length: 0))
+            }
+            return true
+        }
+        // On the last row: add a new one.
+        addRowAndPlaceCaret(in: block)
+        return true
+    }
+
+    /// Replace the block in source with a re-formatted version that has
+    /// one additional empty body row, then drop the caret in the first
+    /// cell of that new row.
+    private func addRowAndPlaceCaret(in block: TableEditing.Block) {
+        let (newText, caretOffsetInBlock) = TableEditing.appendingEmptyRow(block)
+        guard textView.shouldChangeText(in: block.nsRange,
+                                        replacementString: newText) else { return }
+        textView.replaceCharacters(in: block.nsRange, with: newText)
+        textView.didChangeText()
+        let target = block.nsRange.location + caretOffsetInBlock
+        textView.setSelectedRange(NSRange(location: target, length: 0))
+    }
+
+    /// Rect (in `textView` coordinates) of the caret, suitable for
+    /// anchoring a popover. Returns the view's bounds origin as a
+    /// last-resort fallback.
+    func caretRectInTextView() -> NSRect {
+        let sel = textView.selectedRange()
+        if let layoutManager = textView.layoutManager,
+           let container = textView.textContainer {
+            let glyphRange = layoutManager.glyphRange(
+                forCharacterRange: NSRange(location: sel.location, length: 0),
+                actualCharacterRange: nil
+            )
+            var rect = layoutManager.boundingRect(forGlyphRange: glyphRange,
+                                                  in: container)
+            // boundingRect can collapse to zero width for an insertion
+            // point; widen it slightly so the popover arrow points
+            // somewhere sensible.
+            if rect.width < 1 { rect.size.width = 2 }
+            // Offset by the text container inset.
+            rect = rect.offsetBy(dx: textView.textContainerOrigin.x,
+                                 dy: textView.textContainerOrigin.y)
+            return rect
+        }
+        return NSRect(origin: textView.bounds.origin, size: NSSize(width: 2, height: 16))
     }
 }
 
@@ -393,6 +617,34 @@ final class NonAssistingTextView: NSTextView {
             }
         }
         return didWrite
+    }
+
+    // MARK: - Markdown file drop support
+
+    /// Intercept drops of `.md` / `.markdown` files and route them through
+    /// `NSDocumentController` so they open in a new (or recycled empty)
+    /// window. Non-markdown drops fall through to NSTextView's default
+    /// behaviour, so dropping plain text still inserts inline as expected.
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        if QuickMarkdownDocumentController.markdownURLs(in: sender) != nil {
+            return .copy
+        }
+        return super.draggingEntered(sender)
+    }
+
+    override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        if QuickMarkdownDocumentController.markdownURLs(in: sender) != nil {
+            return true
+        }
+        return super.prepareForDragOperation(sender)
+    }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        if let urls = QuickMarkdownDocumentController.markdownURLs(in: sender) {
+            QuickMarkdownDocumentController.openMarkdownURLs(urls)
+            return true
+        }
+        return super.performDragOperation(sender)
     }
 }
 

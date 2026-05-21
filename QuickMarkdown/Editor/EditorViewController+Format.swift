@@ -69,18 +69,111 @@ extension EditorViewController {
     }
 
     @objc func insertTable(_ sender: Any?) {
-        let snippet = """
-        | Column 1 | Column 2 |
-        | --- | --- |
-        | Cell | Cell |
-        | Cell | Cell |
+        // Show a Word/Pages-style grid picker anchored to the caret.
+        // Falls back to a 3 × 3 stub if no window is available (which
+        // shouldn't happen in normal use but keeps the action robust).
+        guard view.window != nil else {
+            insertTable(rows: 3, columns: 3)
+            return
+        }
+        // Make sure the caret is on screen so the picker doesn't anchor
+        // to an off-screen rect (e.g. user is reading further down the
+        // document and triggers the action from the toolbar / menu).
+        textView.scrollRangeToVisible(textView.selectedRange())
+        let caretRect = caretRectInTextView()
+        TableGridPicker.present(
+            in: textView,
+            relativeTo: caretRect,
+            preferredEdge: .maxY
+        ) { [weak self] rows, cols in
+            self?.insertTable(rows: rows, columns: cols)
+        }
+    }
 
-        """
+    /// Insert a `rows × cols` GFM table snippet at the caret. The header
+    /// row is selected (first cell text) so the user can immediately type
+    /// to replace it.
+    private func insertTable(rows: Int, columns: Int) {
+        // GFM tables must be preceded and followed by a blank line so
+        // CommonMark + GFM recognise them as table blocks, not as part of
+        // a preceding paragraph. Insert leading / trailing newlines as
+        // needed based on what surrounds the caret.
+        let store = textView.textStorage ?? NSTextStorage()
+        let ns = store.string as NSString
         let selRange = textView.selectedRange()
+
+        var snippet = TableEditing.newTableSnippet(bodyRows: rows, columns: columns)
+        var caretOffset = 0 // start of `Col 1` text in `snippet`
+
+        // Find offset of `Col 1` text in the snippet so we can leave the
+        // caret there with a selection covering the placeholder.
+        if let r = snippet.range(of: "Col 1") {
+            caretOffset = snippet.distance(from: snippet.startIndex, to: r.lowerBound)
+        }
+
+        // Need a blank line before? Look at the character immediately
+        // before the insertion point.
+        let needsLeadingBlank: Bool = {
+            guard selRange.location > 0 else { return false }
+            let prevChar = ns.character(at: selRange.location - 1)
+            if prevChar != 0x0a /* \n */ {
+                // mid-line: prefix with `\n\n` so we break out and
+                // separate from the current paragraph.
+                return true
+            }
+            // Previous char IS a newline. Need a SECOND newline before
+            // it for a true blank line, otherwise prepend one.
+            if selRange.location < 2 { return false }
+            let prevPrev = ns.character(at: selRange.location - 2)
+            return prevPrev != 0x0a
+        }()
+        if needsLeadingBlank {
+            snippet = "\n" + snippet
+            caretOffset += 1
+        }
+
+        // Need a blank line after?
+        let needsTrailingBlank: Bool = {
+            let pos = selRange.location + selRange.length
+            guard pos < ns.length else { return false }
+            return ns.character(at: pos) != 0x0a
+        }()
+        if needsTrailingBlank {
+            snippet += "\n"
+        }
+
         guard textView.shouldChangeText(in: selRange,
                                         replacementString: snippet) else { return }
         textView.replaceCharacters(in: selRange, with: snippet)
         textView.didChangeText()
+
+        // Select the "Col 1" placeholder so the user can overtype.
+        let caretLoc = selRange.location + caretOffset
+        let placeholderLen = ("Col 1" as NSString).length
+        textView.setSelectedRange(NSRange(location: caretLoc, length: placeholderLen))
+    }
+
+    /// Pretty-print every Markdown table in the document so the source
+    /// pipes line up by column. Operates in reverse source order so each
+    /// replacement leaves the offsets of the earlier blocks intact.
+    @objc func realignTables(_ sender: Any?) {
+        let store = textView.textStorage ?? NSTextStorage()
+        let source = store.string
+        let blocks = TableEditing.allBlocks(in: source)
+        guard !blocks.isEmpty else { NSSound.beep(); return }
+        textView.undoManager?.beginUndoGrouping()
+        defer { textView.undoManager?.endUndoGrouping() }
+        let ns = source as NSString
+        for block in blocks.reversed() {
+            let original = ns.substring(with: block.nsRange)
+            let formatted = TableEditing.format(rows: block.rows,
+                                                alignments: block.alignments)
+            guard original != formatted else { continue }
+            guard textView.shouldChangeText(in: block.nsRange,
+                                            replacementString: formatted) else { continue }
+            textView.replaceCharacters(in: block.nsRange, with: formatted)
+            textView.didChangeText()
+        }
     }
 
     @objc func toggleTask(_ sender: Any?) {

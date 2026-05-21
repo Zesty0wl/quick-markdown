@@ -24,6 +24,14 @@ enum ImageLoader {
 
     private static var cache: [URL: NSImage] = [:]
 
+    /// Drop all cached images. Called by the document window controller
+    /// when its `MediaWatcher` detects a sibling-asset change so the next
+    /// render fetches fresh bytes from disk instead of serving the stale
+    /// in-process copy.
+    static func clearCache() {
+        cache.removeAll()
+    }
+
     /// Resolves `source` against the document's containing folder and, if
     /// the resulting URL points at a readable image file, returns a flowing
     /// `NSTextAttachment` ready to be wrapped in an `NSAttributedString`.
@@ -70,9 +78,13 @@ enum ImageLoader {
 
         // Anything else is relative — needs a baseURL to be meaningful.
         guard let baseURL else { return nil }
-        // Percent-encode the path component so paths with spaces resolve
-        // correctly through URL(string:relativeTo:).
-        let encoded = trimmed.addingPercentEncoding(
+        // Normalise the path: decode any existing percent-encoding (so a
+        // pre-encoded `media/night%20sky.png` becomes `media/night sky.png`)
+        // then re-encode for URL parsing. Without the decode step the
+        // leading `%` would itself be percent-encoded to `%25`, yielding
+        // `%2520` and a file that doesn't exist on disk.
+        let decoded = trimmed.removingPercentEncoding ?? trimmed
+        let encoded = decoded.addingPercentEncoding(
             withAllowedCharacters: .urlPathAllowed
         ) ?? trimmed
         if let resolved = URL(string: encoded, relativeTo: baseURL)?.absoluteURL,
@@ -80,7 +92,7 @@ enum ImageLoader {
             return resolved
         }
         // Last resort: treat as a path fragment from the doc's folder.
-        return baseURL.appendingPathComponent(trimmed)
+        return baseURL.appendingPathComponent(decoded)
     }
 
     // MARK: - Loading

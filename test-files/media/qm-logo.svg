@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 240" role="img" aria-label="Quick Markdown — there are many like it, but this one is mine. Rendered as SVG.">
+  <title>Quick Markdown</title>
+  <desc>The Quick Markdown wordmark beside a stylised hash mark, with the Rifleman's-Creed tagline and a small SVG badge.</desc>
+
+  <!-- Rounded background card -->
+  <defs>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"   stop-color="#1f2937"/>
+      <stop offset="1"   stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0"   stop-color="#60a5fa"/>
+      <stop offset="1"   stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="900" height="240" rx="28" fill="url(#card)"/>
+
+  <!-- Speed lines suggesting "Quick" -->
+  <g stroke="url(#accent)" stroke-width="6" stroke-linecap="round" opacity="0.55">
+    <line x1="40"  y1="90"  x2="78"  y2="90"/>
+    <line x1="28"  y1="120" x2="78"  y2="120"/>
+    <line x1="40"  y1="150" x2="78"  y2="150"/>
+  </g>
+
+  <!-- Big # heading marker -->
+  <text x="100" y="170"
+        font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, monospace"
+        font-size="160" font-weight="800"
+        fill="url(#accent)">#</text>
+
+  <!-- Wordmark + Rifleman's-Creed tagline -->
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', system-ui, sans-serif" fill="#f9fafb">
+    <text x="220" y="125" font-size="48" font-weight="700" letter-spacing="-1.2">This is Quick Markdown.</text>
+    <text x="220" y="170" font-size="20" font-weight="400" fill="#9ca3af" font-style="italic">There are many like it, but this one is mine.</text>
+  </g>
+
+  <!-- Caret cursor, blinking-ish vibe -->
+  <rect x="820" y="100" width="6" height="56" rx="2" fill="#a78bfa" opacity="0.9"/>
+
+  <!-- Small footer label — quiet hint that this banner is a live SVG, not a PNG -->
+  <text x="870" y="222" text-anchor="end"
+        font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, monospace"
+        font-size="11" fill="#6b7280" letter-spacing="0.4">embedded SVG</text>
+</svg>
