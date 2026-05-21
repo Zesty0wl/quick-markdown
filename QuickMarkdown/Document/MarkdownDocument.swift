@@ -45,8 +45,23 @@ final class MarkdownDocument: NSDocument {
 
     // MARK: - NSDocument basics
 
-    override class var autosavesInPlace: Bool { false }
-    override class var autosavesDrafts: Bool { false }
+    // Autosave is on for two reasons:
+    //   1. The `.pkg` postinstall script quits the running app on upgrade,
+    //      and we never want to lose user content to that flow.
+    //   2. It matches the modern macOS convention of "if you typed it, it
+    //      lives on disk" — closer to TextEdit / Notes than a classic Save
+    //      / Don't Save dialog.
+    //
+    // `autosavesInPlace` continuously persists edits to the canonical file
+    // for documents the user has already saved.
+    //
+    // `autosavesDrafts` writes never-saved Untitled documents into the
+    // per-container `Autosave Information/` folder. AppKit calls
+    // `QuickMarkdownDocumentController.reopenDocument(…)` on next launch
+    // to restore them; that override filters out empty / whitespace-only
+    // drafts so we don't bring back ghost Untitled windows.
+    override class var autosavesInPlace: Bool { true }
+    override class var autosavesDrafts: Bool { true }
     override class var preservesVersions: Bool { false }
 
     override func makeWindowControllers() {

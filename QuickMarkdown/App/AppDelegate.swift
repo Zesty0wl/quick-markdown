@@ -57,22 +57,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @MainActor
 final class QuickMarkdownDocumentController: NSDocumentController {
 
-    /// Skip autosaved-document restoration on launch entirely. AppKit
-    /// otherwise re-opens the most-recent autosaved untitled docs, which
-    /// would stack a half-restored window on top of the fresh untitled doc
-    /// we mint via `applicationShouldOpenUntitledFile`.
+    /// Restore autosaved documents on launch — but only when there's
+    /// something worth bringing back. AppKit calls this for every entry
+    /// AppKit thinks should be reopened:
+    ///
+    /// * `urlOrNil != nil` — a previously-saved file. Always restore; the
+    ///   user explicitly committed it to disk.
+    /// * `urlOrNil == nil` — an autosaved *draft* of a never-saved
+    ///   Untitled window. Restore it only when the draft has real content
+    ///   (any non-whitespace byte). Empty drafts are leftover ghosts from
+    ///   prior launches and we silently drop + clean them up so they
+    ///   don't keep haunting us.
     override func reopenDocument(for urlOrNil: URL?,
                                  withContentsOf contentsURL: URL,
                                  display displayDocument: Bool,
                                  completionHandler: @escaping (NSDocument?, Bool, Error?) -> Void) {
-        if urlOrNil == nil {
-            completionHandler(nil, false, nil)
+        if urlOrNil != nil {
+            super.reopenDocument(for: urlOrNil,
+                                 withContentsOf: contentsURL,
+                                 display: displayDocument,
+                                 completionHandler: completionHandler)
             return
         }
-        super.reopenDocument(for: urlOrNil,
-                             withContentsOf: contentsURL,
-                             display: displayDocument,
-                             completionHandler: completionHandler)
+
+        if Self.draftHasMeaningfulContent(at: contentsURL) {
+            super.reopenDocument(for: urlOrNil,
+                                 withContentsOf: contentsURL,
+                                 display: displayDocument,
+                                 completionHandler: completionHandler)
+            return
+        }
+
+        try? FileManager.default.removeItem(at: contentsURL)
+        completionHandler(nil, false, nil)
+    }
+
+    /// Returns true if the autosaved draft at `url` is worth restoring on
+    /// launch — i.e. its UTF-8 decoded contents contain at least one
+    /// non-whitespace character. We check the bytes rather than the file
+    /// size so a draft consisting of a few stray newlines from a bug or
+    /// from `MarkdownTextStorage`'s placeholder writes still counts as a
+    /// ghost.
+    private static func draftHasMeaningfulContent(at url: URL) -> Bool {
+        guard let data = try? Data(contentsOf: url),
+              let text = String(data: data, encoding: .utf8)
+        else { return false }
+        return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// Whenever we open a file (from File > Open, Open Recent, drag-drop,

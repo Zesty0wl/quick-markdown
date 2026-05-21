@@ -166,19 +166,18 @@ struct HTMLRenderer: MarkupVisitor {
         //    preview, because `PreviewViewController.renderBody()` strips
         //    all inline `style="..."` attributes (so the class is the only
         //    thing that survives the round-trip).
-        // 2. **Inline content.** swift-markdown wraps a tight list item's
+        // 2. **Inline first line.** swift-markdown wraps every list item's
         //    text in a `Paragraph`, which becomes a block-level `<p>`. An
         //    inline `<input type="checkbox">` followed by a block `<p>`
-        //    breaks onto two lines. So when the item has a single Paragraph
-        //    child we unwrap it, matching GitHub's HTML output.
+        //    breaks onto two lines — the checkbox sits on its own row and
+        //    the item text drops below it. To keep the checkbox on the same
+        //    baseline as its title we unwrap the FIRST paragraph child
+        //    (rendering its inline content directly) and emit any
+        //    subsequent block children (code blocks, additional paragraphs,
+        //    nested lists for loose items) as-is. Matches GitHub's
+        //    rendering for both tight and loose task lists.
         if let checked = listItem.checkbox {
-            let inner: String
-            if listItem.childCount == 1,
-               let para = listItem.child(at: 0) as? Paragraph {
-                inner = visitChildren(para)
-            } else {
-                inner = visitChildren(listItem)
-            }
+            let inner = unwrapLeadingParagraph(of: listItem)
             let mark = checked == .checked ? "checked" : ""
             let taskIndex = taskItemCounter
             taskItemCounter += 1
@@ -190,6 +189,27 @@ struct HTMLRenderer: MarkupVisitor {
         }
         let inner = visitChildren(listItem)
         return "<li style=\"\(liCSS)\">\(inner)</li>\n"
+    }
+
+    /// Renders a list item's children with the first child unwrapped if it
+    /// is a `Paragraph` — emit its inline content directly instead of
+    /// wrapping it in `<p>`. This keeps the leading text inline with
+    /// whatever marker the `<li>` starts with (the GFM task-list checkbox,
+    /// in our case) instead of dropping it onto a new line. Block children
+    /// after the first paragraph (code blocks, additional paragraphs,
+    /// nested lists) are emitted normally.
+    private mutating func unwrapLeadingParagraph(of listItem: ListItem) -> String {
+        var out = ""
+        var didUnwrap = false
+        for child in listItem.children {
+            if !didUnwrap, let para = child as? Paragraph {
+                out += visitChildren(para)
+                didUnwrap = true
+            } else {
+                out += visit(child)
+            }
+        }
+        return out
     }
 
     mutating func visitTable(_ table: Markdown.Table) -> String {

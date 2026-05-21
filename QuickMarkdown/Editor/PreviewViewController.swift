@@ -228,6 +228,22 @@ final class PreviewViewController: NSViewController {
             font-size: 14px; background: \(codeBg); color: \(codeFg);
             border: 1px solid \(borderClr); border-radius: 4px;
             padding: 8px; overflow: auto; line-height: 1.45;
+            /* Wrap long lines inside the code-block box instead of forcing
+               a horizontal scrollbar. Covers two cases:
+                 1. CommonMark "indented code block" interpretation of
+                    over-indented list-item continuation paragraphs (6+
+                    spaces under a `- ` marker — common source-authoring
+                    mistake where the author aligned continuation under the
+                    bold title text). Without wrap the prose just runs off
+                    the right edge.
+                 2. Genuine code blocks with very long lines (shell
+                    pipelines, long URLs). The scrollbar above is still
+                    available as a fallback for truly unbreakable runs.
+               Scoped to the live preview only — the export pipeline
+               (HTMLRenderer's inline CSS) keeps strict <pre> semantics so
+               code pasted into Word / Outlook / PDF stays unmodified. */
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
         }
         pre code { background: none; padding: 0; border-radius: 0; }
         ul, ol { margin: 0 0 12px; padding-left: 24px; }
