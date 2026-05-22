@@ -43,6 +43,13 @@ final class PreviewViewController: NSViewController {
     /// render via JavaScript.
     private var cachedPlainText: String = ""
 
+    /// Strong reference to the WebKit message/navigation/UI handler.
+    /// `WKWebView.navigationDelegate` and `uiDelegate` are weak; the user
+    /// content controller retains the script-message handler, so in practice
+    /// this would survive — but holding it here too removes any doubt and
+    /// keeps the wiring obvious.
+    private var webHandler: WebMessageHandler?
+
     override func loadView() {
         let root = NSView()
         root.translatesAutoresizingMaskIntoConstraints = false
@@ -52,11 +59,13 @@ final class PreviewViewController: NSViewController {
 
         // Message handler for scroll-position save and plain-text extraction.
         let handler = WebMessageHandler(owner: self)
+        webHandler = handler
         config.userContentController.add(handler, name: "quickMarkdown")
 
         webView = PreviewWebView(frame: .zero, configuration: config)
         webView.translatesAutoresizingMaskIntoConstraints = false
         webView.navigationDelegate = handler
+        webView.uiDelegate = handler
 
         // Transparent background so the theme background shows through.
         webView.setValue(false, forKey: "drawsBackground")
@@ -403,7 +412,7 @@ final class PreviewViewController: NSViewController {
 
 /// Separate class to avoid making PreviewViewController conform to
 /// NSObjectProtocol from WKScriptMessageHandler (which requires NSObject).
-private final class WebMessageHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+private final class WebMessageHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
     private weak var owner: PreviewViewController?
 
     init(owner: PreviewViewController) {
@@ -431,17 +440,55 @@ private final class WebMessageHandler: NSObject, WKScriptMessageHandler, WKNavig
     @MainActor
     func webView(_ webView: WKWebView,
                  decidePolicyFor navigationAction: WKNavigationAction,
-                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        if navigationAction.navigationType == .linkActivated,
-           let url = navigationAction.request.url {
-            // In-page fragment navigation (footnote refs, TOC anchors):
-            // let WKWebView scroll within the preview instead of trying to
-            // open the file: URL in Safari.
-            if let frag = url.fragment, !frag.isEmpty,
-               let cur = owner?.lastRenderedBaseURL,
-               url.scheme == cur.scheme,
-               url.host == cur.host,
-               url.path == cur.path {
+                 decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
+        // We route by URL scheme rather than `navigationType == .linkActivated`
+        // because WKWebView frequently classifies clicks in HTML loaded via
+        // `loadHTMLString(_:baseURL:)` as `.other` instead of `.linkActivated`
+        // — so a stricter check silently lets the navigation through, the
+        // file:// base URL can't resolve http(s), and the click appears to
+        // do nothing (or worse, WKWebView happily renders the remote page
+        // inside the preview itself).
+        guard let url = navigationAction.request.url else {
+            decisionHandler(.allow)
+            return
+        }
+
+        let scheme = url.scheme?.lowercased() ?? ""
+
+        // External-looking schemes always go to the system browser/mail
+        // client. Checked first so `target="_blank"` links (which arrive
+        // with `targetFrame == nil`) are handled correctly.
+        if scheme == "http" || scheme == "https" || scheme == "mailto"
+            || scheme == "tel" || scheme == "sms" {
+            NSWorkspace.shared.open(url)
+            decisionHandler(.cancel)
+            return
+        }
+
+        // In-page fragment navigation (footnote refs, TOC anchors): let
+        // WKWebView scroll within the preview instead of opening the file:
+        // URL in Finder.
+        if scheme == "file",
+           let frag = url.fragment, !frag.isEmpty,
+           let cur = owner?.lastRenderedBaseURL,
+           url.scheme == cur.scheme,
+           url.host == cur.host,
+           url.path == cur.path {
+            decisionHandler(.allow)
+            return
+        }
+
+        // Any other file:// link (relative .md sibling, image, etc.) and
+        // any unrecognised scheme go to the system. We still allow the
+        // initial main-frame load of our rendered page (baseURL itself)
+        // and any sub-resource loads.
+        if scheme == "file" {
+            if navigationAction.targetFrame?.isMainFrame == false {
+                decisionHandler(.allow)
+                return
+            }
+            if let cur = owner?.lastRenderedBaseURL,
+               url.absoluteURL == cur.absoluteURL {
                 decisionHandler(.allow)
                 return
             }
@@ -449,7 +496,28 @@ private final class WebMessageHandler: NSObject, WKScriptMessageHandler, WKNavig
             decisionHandler(.cancel)
             return
         }
+
+        if url.absoluteString == "about:blank" {
+            decisionHandler(.allow)
+            return
+        }
+
         decisionHandler(.allow)
+    }
+
+    // Handle `target="_blank"` and `window.open(...)` style requests:
+    // WKWebView calls this on the UI delegate *instead of* asking the
+    // navigation delegate's decidePolicy. Returning nil cancels the
+    // in-webview open; we redirect to the system browser.
+    @MainActor
+    func webView(_ webView: WKWebView,
+                 createWebViewWith configuration: WKWebViewConfiguration,
+                 for navigationAction: WKNavigationAction,
+                 windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if let url = navigationAction.request.url {
+            NSWorkspace.shared.open(url)
+        }
+        return nil
     }
 }
 

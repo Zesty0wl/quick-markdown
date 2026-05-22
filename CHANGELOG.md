@@ -10,6 +10,34 @@ https://semver.org/spec/v2.0.0.html
 
 ## Unreleased
 
+## 1.0.5 - 2026-05-22
+
+### Fixed
+
+- External links in the rendered preview (Preview mode) now open in the
+  user's default browser instead of either silently doing nothing or
+  loading the remote page inside the Quick Markdown preview pane.
+  On the macOS 26 SDK the `WKNavigationDelegate.decidePolicyFor` method's
+  `decisionHandler` parameter is declared `@escaping @MainActor (...)`
+  and our implementation was missing the `@MainActor` annotation. Swift
+  treated the method as "nearly matching" the protocol but didn't bind
+  it to the protocol slot, so WebKit's default "allow every navigation
+  in-frame" policy ran and our route-to-system-browser code was never
+  reached. The signature is now exact, and every external scheme
+  (`http`, `https`, `mailto`, `tel`, `sms`) is handed to
+  `NSWorkspace.shared.open`. Same-page fragment scrolling (footnote
+  references, TOC anchors) still works inside the preview.
+- `target="_blank"` and `window.open(...)` style links are now also
+  caught via the `WKUIDelegate.createWebViewWith` callback (WebKit asks
+  the UI delegate for those *instead of* the navigation delegate) and
+  routed to the system browser.
+
+### Changed
+
+- Bumped `MARKETING_VERSION` to 1.0.5 and `CURRENT_PROJECT_VERSION` to 7.
+
+## 1.0.4 - 2026-05-21
+
 ### Added
 
 - Autosave on by default. `autosavesInPlace` continuously writes edits to
