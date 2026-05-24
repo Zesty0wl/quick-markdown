@@ -492,7 +492,7 @@ private final class WebMessageHandler: NSObject, WKScriptMessageHandler, WKNavig
                 decisionHandler(.allow)
                 return
             }
-            NSWorkspace.shared.open(url)
+            openLocalLink(url)
             decisionHandler(.cancel)
             return
         }
@@ -515,9 +515,49 @@ private final class WebMessageHandler: NSObject, WKScriptMessageHandler, WKNavig
                  for navigationAction: WKNavigationAction,
                  windowFeatures: WKWindowFeatures) -> WKWebView? {
         if let url = navigationAction.request.url {
-            NSWorkspace.shared.open(url)
+            if url.isFileURL {
+                openLocalLink(url)
+            } else {
+                NSWorkspace.shared.open(url)
+            }
         }
         return nil
+    }
+
+    /// Open a local `file://` link clicked in the preview. If the resolved
+    /// path doesn't exist on disk — typically because the document author
+    /// wrote a relative path that doesn't line up with the document's
+    /// actual location — fall back to revealing the nearest existing
+    /// ancestor in Finder and beep, so the user gets feedback instead of
+    /// the click silently doing nothing.
+    @MainActor
+    private func openLocalLink(_ url: URL) {
+        // Drop any fragment before existence checks / opening — file URLs
+        // with `#frag` are not valid filesystem paths.
+        var target = url
+        if url.fragment != nil {
+            var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            comps?.fragment = nil
+            if let stripped = comps?.url { target = stripped }
+        }
+
+        let fm = FileManager.default
+        if fm.fileExists(atPath: target.path) {
+            if NSWorkspace.shared.open(target) { return }
+        }
+
+        // Target missing or LaunchServices refused to open it. Walk up the
+        // path until we find a directory that does exist and reveal it in
+        // Finder so the user can see where the link pointed.
+        NSSound.beep()
+        var probe = target.deletingLastPathComponent()
+        while probe.path != "/" && !fm.fileExists(atPath: probe.path) {
+            probe = probe.deletingLastPathComponent()
+        }
+        if fm.fileExists(atPath: probe.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([target])
+        }
+        NSLog("[QuickMarkdown] Preview link target not found: %@", target.path)
     }
 }
 

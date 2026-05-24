@@ -114,7 +114,52 @@ struct HTMLRenderer: MarkupVisitor {
         case 5: css = h5CSS
         default: css = h6CSS
         }
-        return "<h\(heading.level) style=\"\(css)\">\(inner)</h\(heading.level)>\n"
+        // Emit a GitHub-flavour slug as the heading's `id` so in-document
+        // fragment links (`[See later](#section-name)`, GitHub TOCs, etc.)
+        // actually scroll the preview. swift-markdown doesn't auto-generate
+        // these — without them the WKWebView resolves the fragment URL but
+        // finds nothing to anchor to, and the click silently no-ops.
+        let slug = Self.slugify(Self.headingPlainText(heading))
+        let idAttr = slug.isEmpty ? "" : " id=\"\(Self.escapeAttr(slug))\""
+        return "<h\(heading.level)\(idAttr) style=\"\(css)\">\(inner)</h\(heading.level)>\n"
+    }
+
+    /// Collect the heading's plain-text content by concatenating every
+    /// `Text` and `InlineCode` descendant. Mirrors the input that GitHub's
+    /// slugger sees (it ignores emphasis / link wrappers and uses the
+    /// rendered text).
+    private static func headingPlainText(_ markup: any Markup) -> String {
+        var out = ""
+        for child in markup.children {
+            if let t = child as? Markdown.Text {
+                out += t.string
+            } else if let c = child as? InlineCode {
+                out += c.code
+            } else {
+                out += headingPlainText(child)
+            }
+        }
+        return out
+    }
+
+    /// GitHub-flavour heading slug: lowercase, strip everything that isn't
+    /// alphanumeric / space / hyphen / underscore, then replace each space
+    /// with a hyphen. Consecutive removed punctuation collapses into the
+    /// surrounding spaces, which produces the familiar `--` runs in
+    /// slugs like `part-65--sync-an-out-of-date-fork` (from
+    /// `Part 6.5 — Sync an out-of-date fork`).
+    static func slugify(_ text: String) -> String {
+        let lower = text.lowercased()
+        var stripped = ""
+        stripped.reserveCapacity(lower.count)
+        for scalar in lower.unicodeScalars {
+            if (scalar.value >= 0x61 && scalar.value <= 0x7A) // a-z
+                || (scalar.value >= 0x30 && scalar.value <= 0x39) // 0-9
+                || scalar == "-" || scalar == "_" || scalar == " " {
+                stripped.unicodeScalars.append(scalar)
+            }
+        }
+        return stripped.replacingOccurrences(of: " ", with: "-")
     }
 
     mutating func visitParagraph(_ paragraph: Paragraph) -> String {

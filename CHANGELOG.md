@@ -10,6 +10,25 @@ https://semver.org/spec/v2.0.0.html
 
 ## Unreleased
 
+## 1.0.6 - 2026-05-24
+
+### Fixed
+
+- In-document anchor links in the rendered preview (e.g. a
+  `[Jump to Part 6.5](#part-65--sync-an-out-of-date-fork)` link) now
+  scroll the preview to the matching heading instead of silently
+  doing nothing. `HTMLRenderer` now stamps every heading with a
+  GitHub-flavour slug `id` (lowercase, non-alphanumerics stripped,
+  spaces to hyphens) so WKWebView has something to scroll to when
+  the fragment URL resolves.
+- Relative `file://` links in the rendered preview (e.g.
+  `../../GLOSSARY.md`) that resolve to a path which doesn't exist on
+  disk now beep, reveal the nearest existing ancestor folder in
+  Finder, and log the missing path via `NSLog` so the failure is
+  visible. Previously `NSWorkspace.shared.open` was called with no
+  feedback and the click appeared dead. Valid relative links still
+  open as before.
+
 ## 1.0.5 - 2026-05-22
 
 ### Fixed
