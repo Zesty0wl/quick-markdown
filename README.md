@@ -6,13 +6,13 @@ A focused, beautiful, native macOS Markdown editor for the AI era.
 
 [![Build](https://github.com/Zesty0wl/quick-markdown/actions/workflows/build.yml/badge.svg)](https://github.com/Zesty0wl/quick-markdown/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Platform: macOS 26+](https://img.shields.io/badge/platform-macOS%2026%2B-blue.svg)](#download)
+[![Platform: macOS 15+](https://img.shields.io/badge/platform-macOS%2015%2B-blue.svg)](#download)
 [![Swift 6](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![Signed and Notarized](https://img.shields.io/badge/signed%20and%20notarized-Apple%20Developer%20ID-success)](#download)
 
 ### [Download for macOS](https://github.com/Zesty0wl/quick-markdown/releases/latest)
 
-Signed and notarized. App Sandbox. macOS 26 Tahoe and newer.
+Signed and notarized. App Sandbox. Universal binary (Apple Silicon + Intel). macOS 15 Sequoia and newer.
 
 </div>
 

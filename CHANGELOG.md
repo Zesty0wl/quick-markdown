@@ -10,6 +10,24 @@ https://semver.org/spec/v2.0.0.html
 
 ## Unreleased
 
+## 1.0.7 - 2026-05-25
+
+### Changed
+
+- Quick Markdown now ships as a **universal binary** (Apple Silicon
+  and Intel) and the minimum supported macOS is lowered from
+  **26 Tahoe** to **15 Sequoia**. The deployment target was dropped
+  from `26.0` to `15.0` in `project.yml` (top-level + target +
+  `MACOSX_DEPLOYMENT_TARGET`), `ARCHS` is pinned to
+  `$(ARCHS_STANDARD)` (which is `arm64 x86_64` on macOS), and
+  `ONLY_ACTIVE_ARCH` is forced `NO` for the Release configuration so
+  archives always emit both slices. The CI workflow no longer gates
+  the build on `macosx26` SDK availability and now passes
+  `ONLY_ACTIVE_ARCH=NO ARCHS='arm64 x86_64'` explicitly. Verified by
+  `lipo -info` on the produced binary.
+- Bumped `MARKETING_VERSION` to 1.0.7 and `CURRENT_PROJECT_VERSION`
+  to 9.
+
 ## 1.0.6 - 2026-05-24
 
 ### Fixed

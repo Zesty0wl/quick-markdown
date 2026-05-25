@@ -37,16 +37,14 @@ jobs:
             -project QuickMarkdown.xcodeproj \
             -scheme QuickMarkdown
 
-      - name: Build (when macOS 26 SDK is available)
+      - name: Build (universal, macOS 15+ deployment target)
         run: |
           set -euo pipefail
-          if xcodebuild -showsdks | grep -q "macosx26"; then
-            xcodebuild \
-              -project QuickMarkdown.xcodeproj \
-              -scheme QuickMarkdown \
-              -configuration Debug \
-              -destination 'platform=macOS' \
-              build
-          else
-            echo "macOS 26 SDK not available on this runner; build step skipped."
-          fi
+          xcodebuild \
+            -project QuickMarkdown.xcodeproj \
+            -scheme QuickMarkdown \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            ONLY_ACTIVE_ARCH=NO \
+            ARCHS='arm64 x86_64' \
+            build
