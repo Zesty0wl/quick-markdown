@@ -10,6 +10,32 @@ https://semver.org/spec/v2.0.0.html
 
 ## Unreleased
 
+## 1.0.8 - 2026-05-31
+
+### Fixed
+
+- **File ▸ Print… no longer prints blank pages or silently drops the
+  job.** The menu item was wired to `NSView.printView(_:)`, which
+  walked the responder chain to either the editor's `NSTextView`
+  (configured with `allowsNonContiguousLayout = true` and an
+  effectively infinite container height, so pagination began before
+  layout existed) or the preview's `WKWebView` (no useful
+  `printView:` implementation) — both produced empty pages. Print
+  now routes through a new `DocumentWindowController.printDocument(_:)`
+  that reuses the same paginated HTML → WebKit → PDF pipeline as
+  *Export as PDF* and hands the result to `NSPrintOperation` via
+  `PDFDocument`.
+- The print operation now retains its backing `PDFDocument` and the
+  `NSPrintOperation` itself for the lifetime of the sheet-modal
+  session. `runModal(for:delegate:didRun:contextInfo:)` is
+  asynchronous, and without the retain the `PDFDocument` was being
+  released the instant the helper returned. CUPS then spooled a
+  "successful" empty job and no paper came out of the printer. The
+  references are cleared in a `printOperationDidRun(_:success:contextInfo:)`
+  callback.
+- Bumped `MARKETING_VERSION` to 1.0.8 and `CURRENT_PROJECT_VERSION`
+  to 10.
+
 ## 1.0.7 - 2026-05-25
 
 ### Changed

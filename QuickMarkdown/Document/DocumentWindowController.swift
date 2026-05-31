@@ -1,4 +1,5 @@
 import AppKit
+import PDFKit
 
 /// Hosts the editor + read-only preview + reload banner + status bar for a
 /// `MarkdownDocument`.
@@ -588,6 +589,69 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
                 }
             }
         }
+    }
+
+    /// File ▸ Print… Route printing through the same paginated HTML→PDF
+    /// pipeline as `exportAsPDF` and hand the result to `NSPrintOperation`
+    /// via `PDFDocument`. Going through the responder chain to the editor's
+    /// `NSTextView` (non-contiguous layout, infinite container height) or
+    /// the preview's `WKWebView` both yielded blank pages.
+    @objc func printDocument(_ sender: Any?) {
+        guard let doc = markdownDocument, let window = window else { return }
+        let baseURL = doc.fileURL?.deletingLastPathComponent()
+        PDFExporter.generate(markdownSource: doc.content,
+                             baseURL: baseURL) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let data):
+                self.runPrintOperation(pdfData: data, on: window)
+            case .failure(let error):
+                self.presentExportError(error)
+            }
+        }
+    }
+
+    /// Strong references held for the lifetime of an in-flight sheet-modal
+    /// print operation. `runModal(for:delegate:didRun:contextInfo:)` is
+    /// asynchronous, so without these the `PDFDocument` backing the
+    /// `NSPrintOperation`'s page view deallocates the moment the function
+    /// returns. The job then "succeeds" with no drawable content — the
+    /// printer spools an empty document and ejects no paper.
+    private var pendingPrintPDF: PDFDocument?
+    private var pendingPrintOperation: NSPrintOperation?
+
+    @MainActor
+    private func runPrintOperation(pdfData: Data, on window: NSWindow) {
+        guard let pdf = PDFDocument(data: pdfData) else {
+            let alert = NSAlert()
+            alert.messageText = "Could not prepare document for printing"
+            alert.alertStyle = .warning
+            alert.beginSheetModal(for: window, completionHandler: nil)
+            return
+        }
+        let info = markdownDocument?.printInfo ?? NSPrintInfo.shared
+        guard let op = pdf.printOperation(for: info,
+                                          scalingMode: .pageScaleToFit,
+                                          autoRotate: true) else {
+            return
+        }
+        op.showsPrintPanel = true
+        op.showsProgressPanel = true
+        pendingPrintPDF = pdf
+        pendingPrintOperation = op
+        op.runModal(
+            for: window,
+            delegate: self,
+            didRun: #selector(printOperationDidRun(_:success:contextInfo:)),
+            contextInfo: nil
+        )
+    }
+
+    @objc private func printOperationDidRun(_ operation: NSPrintOperation,
+                                            success: Bool,
+                                            contextInfo: UnsafeMutableRawPointer?) {
+        pendingPrintPDF = nil
+        pendingPrintOperation = nil
     }
 
     @MainActor

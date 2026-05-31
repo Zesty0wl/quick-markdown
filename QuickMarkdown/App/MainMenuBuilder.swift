@@ -109,7 +109,7 @@ enum MainMenuBuilder {
                      action: #selector(NSDocument.runPageLayout(_:)),
                      keyEquivalent: "P")
         let print = NSMenuItem(title: "Print…",
-                               action: #selector(NSView.printView(_:)),
+                               action: #selector(DocumentWindowController.printDocument(_:)),
                                keyEquivalent: "p")
         menu.addItem(print)
 
