@@ -43,4 +43,26 @@ enum FormattedPasteboardWriter {
             }
         }
     }
+
+    /// Writes an already-rendered HTML fragment — the preview's current
+    /// selection, with preview-only attributes stripped — plus its plain
+    /// text. The fragment is wrapped in `HTMLRenderer.selectionFragmentCSS`
+    /// so pastes match `writeFormatted` in font and spacing but carry no
+    /// colours, leaving the receiving app's theme in charge.
+    ///
+    /// Written from Swift rather than via `clipboardData.setData` in the
+    /// page because WebKit sanitises script-written HTML through its own
+    /// serialiser, which re-inlines the computed `color`.
+    @MainActor
+    static func writeHTMLFragment(_ fragment: String,
+                                  plainText: String,
+                                  to pasteboard: NSPasteboard = .general) {
+        let html = "<div style=\"\(HTMLRenderer.selectionFragmentCSS)\">\(fragment)</div>"
+        pasteboard.clearContents()
+        pasteboard.declareTypes([.html, .string], owner: nil)
+        if let data = html.data(using: .utf8) {
+            pasteboard.setData(data, forType: .html)
+        }
+        pasteboard.setString(plainText, forType: .string)
+    }
 }

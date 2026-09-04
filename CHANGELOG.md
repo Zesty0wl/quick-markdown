@@ -10,6 +10,25 @@ https://semver.org/spec/v2.0.0.html
 
 ## Unreleased
 
+## 1.0.9 - 2026-09-04
+
+### Fixed
+
+- **Copying from the Preview no longer carries the theme's colours into
+  the pasteboard.** WebKit's default copy serialises the computed style of
+  every element, so each paragraph landed in Mail / Outlook / Word with an
+  inline `color` and an opaque `background-color` taken from the preview
+  theme. That was invisible in a light compose window but rendered every
+  paragraph as a grey box in dark mode — for the sender and for anyone
+  reading the message in a dark-mode client. The preview now intercepts
+  `copy`, strips preview-only attributes from the selection, and hands the
+  clean semantic HTML to Swift, which writes it to the pasteboard (with
+  plain text) wrapped in a colour-free font/size declaration so the
+  receiving app's own theme applies. Written from Swift deliberately:
+  HTML set via `clipboardData` from JavaScript goes through WebKit's
+  sanitiser, which re-inlines the computed `color`.
+- Bumped `MARKETING_VERSION` to 1.0.9 and `CURRENT_PROJECT_VERSION` to 11.
+
 ## 1.0.8 - 2026-05-31
 
 ### Fixed

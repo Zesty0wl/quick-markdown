@@ -31,6 +31,12 @@ struct HTMLRenderer: MarkupVisitor {
     // MARK: - Style strings (inline CSS)
 
     private let bodyCSS = "font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:#1d1d1f;max-width:740px;margin:0 auto;"
+    /// Wrapper for a fragment copied out of the live preview. Same font,
+    /// size and leading as `bodyCSS` but deliberately **no colour**: the
+    /// fragment is pasted into someone else's document, and any explicit
+    /// text or background colour fights the receiving app's theme (most
+    /// visibly as grey paragraph boxes in a dark-mode mail compose window).
+    static let selectionFragmentCSS = "font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;"
     private let codeCSS = "font-family:'SF Mono',Menlo,Monaco,Consolas,monospace;font-size:14px;background:#f5f5f5;color:#1d1d1f;border-radius:4px;padding:2px 4px;"
     private let preCSS = "font-family:'SF Mono',Menlo,Monaco,Consolas,monospace;font-size:14px;background:#f5f5f5;color:#1d1d1f;border:1px solid #e0e0e0;border-radius:4px;padding:8px;overflow:auto;line-height:1.45;"
     private let blockquoteCSS = "border-left:3px solid #007aff;margin:0 0 16px 0;padding:0 0 0 16px;color:#3c3c43;font-style:italic;"

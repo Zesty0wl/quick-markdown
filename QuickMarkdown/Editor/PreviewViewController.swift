@@ -317,6 +317,39 @@ final class PreviewViewController: NSViewController {
         </style>
         </head><body>\(body)
         <script>
+        // Copy from the preview: hand Swift the selection as clean semantic
+        // HTML instead of letting WebKit serialise it. WebKit's default copy
+        // bakes every element's computed style into the markup — including
+        // the theme's `color` and `background` from `body` — so each pasted
+        // paragraph lands in Mail / Outlook / Word with a hard-coded text
+        // colour and an opaque background. Invisible in a light compose
+        // window; in dark mode every paragraph shows as a grey box, for the
+        // sender and for recipients alike. Writing via `clipboardData` from
+        // JS is no better: WebKit sanitises script-written HTML through the
+        // same serialiser and re-adds `color`. So we strip preview-only
+        // attributes here and let FormattedPasteboardWriter put the result
+        // on the pasteboard with no colours at all.
+        document.addEventListener('copy', function(e) {
+            var sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+            var content = document.createElement('div');
+            for (var i = 0; i < sel.rangeCount; i++) {
+                content.appendChild(sel.getRangeAt(i).cloneContents());
+            }
+            // Theme classes, heading anchor ids, task-list indices, inline
+            // style: none of it belongs in the pasted document.
+            content.querySelectorAll('*').forEach(function(el) {
+                ['style', 'class', 'id', 'data-task-index'].forEach(function(a) {
+                    el.removeAttribute(a);
+                });
+            });
+            e.preventDefault();
+            window.webkit.messageHandlers.quickMarkdown.postMessage({
+                type: 'copySelection',
+                html: content.innerHTML,
+                text: sel.toString()
+            });
+        });
         // After load, send plain text to Swift for speech and restore scroll.
         window.addEventListener('load', function() {
             window.webkit.messageHandlers.quickMarkdown.postMessage({
@@ -406,6 +439,13 @@ final class PreviewViewController: NSViewController {
     fileprivate func didToggleTask(at index: Int) {
         onTaskToggle?(index)
     }
+
+    /// The preview's `copy` handler sends the selection here (see the
+    /// `<script>` in `renderHTML`). Writes it to the general pasteboard as
+    /// colour-free HTML plus plain text.
+    fileprivate func didCopySelection(html: String, text: String) {
+        FormattedPasteboardWriter.writeHTMLFragment(html, plainText: text)
+    }
 }
 
 // MARK: - WKScriptMessageHandler + WKNavigationDelegate
@@ -428,6 +468,10 @@ private final class WebMessageHandler: NSObject, WKScriptMessageHandler, WKNavig
             owner?.didReceivePlainText(text)
         } else if type == "toggleTask", let index = dict["index"] as? Int {
             owner?.didToggleTask(at: index)
+        } else if type == "copySelection",
+                  let html = dict["html"] as? String,
+                  let text = dict["text"] as? String {
+            owner?.didCopySelection(html: html, text: text)
         }
     }
 
