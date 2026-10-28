@@ -36,6 +36,7 @@ It's free, it's open source, it's MIT licensed. Fill your boots.
 
 - **Fast.** Pure Swift 6, AppKit, zero Electron. Opens instantly, scrolls smoothly, sips RAM.
 - **Built for LLMs.** Point it at the file Claude Code, Copilot, or ChatGPT is writing. Watch the page rewrite itself in real time.
+- **Renders what GitHub renders.** Full CommonMark and GitHub Flavored Markdown, plus syntax highlighting in 193 languages, KaTeX maths, Mermaid diagrams, GitHub alerts, footnotes, and Obsidian-style callouts and wiki links. All offline.
 - **Real-time visual updates.** Edit the `.md` or a sibling SVG / PNG and the preview follows. No refresh button. Your scroll position survives.
 - **Paste in from your LLM.** Select all and copy in Claude / ChatGPT / Gemini (`⌘A`, `⌘C`), then paste into Quick Markdown (`⌘V`). It strips the chat-app cruft and renders fresh Markdown.
 - **Paste out as rich text anywhere.** `⇧⌘C` copies your document as HTML, RTF, and Markdown in one go. Outlook, Word, Notion, Confluence, Slack, Mail. It lands looking like it was authored there. `⇧⌘E` exports a signature-ready PDF.
