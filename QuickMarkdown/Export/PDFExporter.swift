@@ -144,7 +144,7 @@ final class PDFExporter: NSObject, WKNavigationDelegate {
     private func collectNoSplitBoxes() async throws -> [NoSplitBox] {
         let js = """
         (function() {
-            var sel = 'img, pre, table, blockquote, h1, h2, h3, h4, h5, h6, .katex-display, .qm-mermaid';
+            var sel = 'img, pre, table, blockquote, h1, h2, h3, h4, h5, h6, .katex-display, .qm-mermaid, .qm-alert';
             var els = document.querySelectorAll(sel);
             var out = [];
             for (var i = 0; i < els.length; i++) {

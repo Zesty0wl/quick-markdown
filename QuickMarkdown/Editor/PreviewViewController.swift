@@ -261,6 +261,9 @@ final class PreviewViewController: NSViewController {
         let bqAccent = NSColor.controlAccentColor.cssHex
         let richContentCSS = HTMLRenderer.richContentCSS(for: body,
                                                          prefersDark: theme.prefersDark)
+        let alertColorCSS = HTMLRenderer.AlertKind.allCases.map { kind in
+            ".qm-alert-\(kind.rawValue) { --qm-alert: \(theme.prefersDark ? kind.darkColor : kind.color); }"
+        }.joined(separator: "\n")
 
         let bodyFont: String
         switch font {
@@ -296,6 +299,18 @@ final class PreviewViewController: NSViewController {
             margin: 0 0 16px; padding: 0 0 0 16px;
             color: \(secondaryFg); font-style: italic;
         }
+        /* GitHub-style alerts (`> [!NOTE]` and friends). */
+        .qm-alert {
+            border-left: 4px solid var(--qm-alert);
+            margin: 0 0 16px; padding: 0 0 0 16px;
+        }
+        .qm-alert > :last-child { margin-bottom: 0; }
+        .qm-alert-title {
+            display: flex; align-items: center; gap: 8px;
+            color: var(--qm-alert); font-weight: 600; margin: 0 0 8px;
+        }
+        .qm-alert-icon { flex: none; }
+        \(alertColorCSS)
         code {
             font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace;
             font-size: 14px; background: \(codeBg); color: \(codeFg);

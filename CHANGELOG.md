@@ -33,6 +33,12 @@ https://semver.org/spec/v2.0.0.html
   The script is only loaded into pages that contain a diagram. See
   `test-files/03-mermaid.md`.
 
+- **GitHub-style alerts.** `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`,
+  `[!WARNING]` and `[!CAUTION]` render as callouts with GitHub's colours
+  and icons (lighter colours on dark themes) in the Preview and PDF, and
+  as a coloured, titled block in Copy Formatted. As on GitHub, the marker
+  must be alone on the quote's first line.
+
 ### Fixed
 
 - **The view no longer jumps while another app or an agent edits the
