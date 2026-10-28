@@ -112,4 +112,26 @@ targets:
         product: Markdown
     # Generate a SHARED scheme so contributors (and CI) get a working
     # QuickMarkdown.xcscheme without re-running xcodegen.
-    scheme: {}
+    scheme:
+      testTargets:
+        - QuickMarkdownTests
+
+  # Unit tests, hosted in the app so they can call its renderers. Includes
+  # the CommonMark / GFM spec conformance suites (QuickMarkdownTests/Fixtures).
+  QuickMarkdownTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: QuickMarkdownTests
+    dependencies:
+      - target: QuickMarkdown
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.neiljohn.quickmarkdown.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Quick Markdown.app/Contents/MacOS/Quick Markdown"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+    configFiles:
+      Debug: Signing.xcconfig
+      Release: Signing.xcconfig

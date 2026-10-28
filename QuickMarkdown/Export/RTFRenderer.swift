@@ -14,7 +14,7 @@ enum AttributedStringRenderer {
             string: markdownSource,
             attributes: MarkdownStyles.defaultAttributes
         )
-        let document = Document(parsing: markdownSource)
+        let document = Document(parsing: markdownSource, options: HTMLRenderer.parseOptions)
         let offsets = LineOffsetIndex(source: markdownSource)
         let fullRange = NSRange(location: 0, length: (markdownSource as NSString).length)
         var styler = LivePreviewStyler(

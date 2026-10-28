@@ -39,8 +39,44 @@ https://semver.org/spec/v2.0.0.html
   as a coloured, titled block in Copy Formatted. As on GitHub, the marker
   must be alone on the quote's first line.
 
+- **Full CommonMark and GitHub Flavored Markdown conformance.** The
+  renderer now passes every example in the GFM spec (672), cmark-gfm's
+  extension tests (30) and CommonMark 0.31.2 (652), apart from documented
+  places where it deliberately does what GitHub does. A new unit-test
+  target renders the suites, and `scripts/spec-report.py` compares the
+  results (`--check` for CI).
+- **Bare URLs and email addresses become links** (`www.example.com`,
+  `https://…`, `name@example.com`, `mailto:` and `xmpp:`), with GitHub's
+  rules for trailing punctuation and brackets.
+- **Footnotes use GitHub's structure**: a footnotes section with a proper
+  list, so a footnote can hold several paragraphs, quotes, lists and code;
+  label-based anchors; one back-link per reference.
+
+### Changed
+
+- **No smart punctuation**, as on GitHub: quotes stay straight and `--`
+  stays two hyphens, so command-line flags in prose survive.
+- **Scripts in a document no longer run in the Preview.** GitHub's tag
+  filter shows `<script>`, `<style>`, `<iframe>`, `<textarea>` and similar
+  tags as text, a Content Security Policy blocks event-handler attributes
+  and `javascript:` links, and `javascript:`/`vbscript:` link targets are
+  removed.
+
 ### Fixed
 
+- **Tight lists render tight.** List items were always wrapped in
+  paragraphs, so every list looked double-spaced.
+- **Ordered lists keep their starting number** (`3.` starts at 3).
+- **Table column alignment** (`:---:`, `---:`) now shows in the Preview.
+- **Image alt text** with formatting or links no longer breaks the image.
+- **Link and image URLs** with spaces, accents or brackets are encoded
+  correctly.
+- **Code fence languages** use the first word of the info string
+  (` ```ruby startline=3 ` is Ruby).
+- **Heading anchors keep non-ASCII letters** (`## Café` is `#café`;
+  headings in other scripts get anchors at all).
+- **A document starting with a `---` rule** no longer loses everything up
+  to the next `---` (only YAML-looking blocks count as front matter).
 - **The view no longer jumps while another app or an agent edits the
   file.** The Preview now updates in place instead of reloading: nothing
   flashes, the block at the top of the window stays where it is when text

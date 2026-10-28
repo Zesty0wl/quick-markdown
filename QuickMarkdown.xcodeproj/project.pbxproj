@@ -31,6 +31,7 @@
 		468DF3E12191DCA8C4A766BF /* KaTeX_SansSerif-Regular.woff2 in Resources */ = {isa = PBXBuildFile; fileRef = 66EFE968EFF24664267CDA8E /* KaTeX_SansSerif-Regular.woff2 */; };
 		4D3B03CCF5C85579F6A48E91 /* FormattedPasteboardWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C7587942D7E87C43F52064 /* FormattedPasteboardWriter.swift */; };
 		4F755C0FF34FE659B9A59F58 /* KaTeX_Main-BoldItalic.woff2 in Resources */ = {isa = PBXBuildFile; fileRef = 472C470C84A41087EEA81845 /* KaTeX_Main-BoldItalic.woff2 */; };
+		5032FCF54B858671BAB339EC /* commonmark-0.31.2-spec.json in Resources */ = {isa = PBXBuildFile; fileRef = 77AA3A406C621FAB458AED9B /* commonmark-0.31.2-spec.json */; };
 		511FF2F63ADB05E060370DB5 /* ImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E7221BBFBCC0C6E5331790C /* ImageLoader.swift */; };
 		581EAB764C8D7BF2B65ED8B0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 93B66594A3D54DAC366F69B7 /* PrivacyInfo.xcprivacy */; };
 		585A8ADAF934AF8038C31F3D /* DocumentWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63D7411AE64F8A4BEA85C9E3 /* DocumentWindowController.swift */; };
@@ -43,10 +44,12 @@
 		718E2899E3E88F5167D66B83 /* TableEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B9AD9A21FF73709C3AC4967 /* TableEditing.swift */; };
 		749C3BEB9A1A33DFCCD8342B /* MarkdownAttributedRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4010FB68B7F16736AAE0AE36 /* MarkdownAttributedRenderer.swift */; };
 		760A43A7EEEFB9D5CA440156 /* ReadingTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77ABE2CBD0BF69A1557E9B86 /* ReadingTheme.swift */; };
+		77CDCAC1B78C8BFF5AE97495 /* cmark-extensions.json in Resources */ = {isa = PBXBuildFile; fileRef = 3F45B30A9E15B432ED1000A3 /* cmark-extensions.json */; };
 		7E6BC23D75FAF104B2B89BA2 /* LICENSE-Mermaid.txt in Resources */ = {isa = PBXBuildFile; fileRef = 46C1AA8BEA2E5C5C1BEE821B /* LICENSE-Mermaid.txt */; };
 		80772628C7C7755B0D11EE34 /* KaTeX_Main-Regular.woff2 in Resources */ = {isa = PBXBuildFile; fileRef = F5F12F1004BB24B6D444F334 /* KaTeX_Main-Regular.woff2 */; };
 		80E8F710EF2FCB62C94B28E7 /* MarkdownTextStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E8578E7FAF449C4D506F9F7 /* MarkdownTextStorage.swift */; };
 		883635E46A24F636A3A32520 /* github.min.css in Resources */ = {isa = PBXBuildFile; fileRef = 8E41763B0746E00E53BC2547 /* github.min.css */; };
+		893B243F68151663783BEEA3 /* SpecConformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E83EA730F2D7C73565BD2D /* SpecConformanceTests.swift */; };
 		8B272C5F8EFD69911BD57281 /* KaTeX_Main-Bold.woff2 in Resources */ = {isa = PBXBuildFile; fileRef = 08359064AB33F37D89CB11C0 /* KaTeX_Main-Bold.woff2 */; };
 		8C416DC9367464048EF778FB /* KaTeX_Main-Italic.woff2 in Resources */ = {isa = PBXBuildFile; fileRef = 9C1106ED8AC317A4B3AAE828 /* KaTeX_Main-Italic.woff2 */; };
 		93795C8B2608A3435E1D905D /* PDFExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496E34FB2A6D3BA45C0A407A /* PDFExporter.swift */; };
@@ -56,6 +59,7 @@
 		A01C65EA29A951F10CA457B5 /* MarkdownStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 415D4C4071399A6C8B7F4D0E /* MarkdownStyles.swift */; };
 		A4C85139DA5730E70269C040 /* ClipboardNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2D22324682887D62CEE033F /* ClipboardNormalizer.swift */; };
 		A5A355897E77DC3074E296C8 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56EA9155E9799F012DC00E37 /* main.swift */; };
+		AD82227EF24BE3E61B157968 /* gfm-spec.json in Resources */ = {isa = PBXBuildFile; fileRef = C40B1C1D72BD89BBFCDA8728 /* gfm-spec.json */; };
 		AE9934D2DD8E8BD9019C346A /* KaTeX_Script-Regular.woff2 in Resources */ = {isa = PBXBuildFile; fileRef = ABCF36F885CCED94345EC729 /* KaTeX_Script-Regular.woff2 */; };
 		B3EDBA7FF886AAF39CFB1E00 /* HTMLRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944C75B773638802D1D27C69 /* HTMLRenderer.swift */; };
 		B9445B601FF32A3A4F800574 /* katex.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 69197651A29AF70901F1968A /* katex.min.js */; };
@@ -76,6 +80,16 @@
 		F7798CFE41A3FC3131A5303D /* TableGridPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 027B7A21F7DE4029E153F1E2 /* TableGridPicker.swift */; };
 		FE67532FDB44934079D2E839 /* highlight.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 137CA3A3F130E5ACB1EAC7DF /* highlight.min.js */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		132BD830B53E961D8BDCF5F0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EB174D11CBA8AA1C3F26FB62 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = ABD9B0DA2B3C7173F99FD0DA;
+			remoteInfo = QuickMarkdown;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		027B7A21F7DE4029E153F1E2 /* TableGridPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableGridPicker.swift; sourceTree = "<group>"; };
@@ -98,6 +112,7 @@
 		2B9AD9A21FF73709C3AC4967 /* TableEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableEditing.swift; sourceTree = "<group>"; };
 		2E8B39B1157BB6B65F1D3DE2 /* MainMenuBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuBuilder.swift; sourceTree = "<group>"; };
 		33A9027DF42EAD94B6657959 /* mermaid.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = mermaid.css; sourceTree = "<group>"; };
+		3F45B30A9E15B432ED1000A3 /* cmark-extensions.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "cmark-extensions.json"; sourceTree = "<group>"; };
 		4010FB68B7F16736AAE0AE36 /* MarkdownAttributedRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownAttributedRenderer.swift; sourceTree = "<group>"; };
 		415D4C4071399A6C8B7F4D0E /* MarkdownStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownStyles.swift; sourceTree = "<group>"; };
 		44925474501C6CDE897989DE /* StatusBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarView.swift; sourceTree = "<group>"; };
@@ -110,6 +125,7 @@
 		66EFE968EFF24664267CDA8E /* KaTeX_SansSerif-Regular.woff2 */ = {isa = PBXFileReference; path = "KaTeX_SansSerif-Regular.woff2"; sourceTree = "<group>"; };
 		69197651A29AF70901F1968A /* katex.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = katex.min.js; sourceTree = "<group>"; };
 		6A9069A7DF9F59195AA14ECD /* MermaidRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRenderer.swift; sourceTree = "<group>"; };
+		77AA3A406C621FAB458AED9B /* commonmark-0.31.2-spec.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "commonmark-0.31.2-spec.json"; sourceTree = "<group>"; };
 		77ABE2CBD0BF69A1557E9B86 /* ReadingTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingTheme.swift; sourceTree = "<group>"; };
 		7AC5BC0F916D3E4EEFBD73D9 /* KaTeX_Size3-Regular.woff2 */ = {isa = PBXFileReference; path = "KaTeX_Size3-Regular.woff2"; sourceTree = "<group>"; };
 		7D3850C9E69EE7ED66727EEC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -120,6 +136,7 @@
 		8C31DA5FBE044193B9750816 /* KaTeX_Size2-Regular.woff2 */ = {isa = PBXFileReference; path = "KaTeX_Size2-Regular.woff2"; sourceTree = "<group>"; };
 		8D7C5DE2CB25539AB4D1BDA9 /* KaTeX_SansSerif-Bold.woff2 */ = {isa = PBXFileReference; path = "KaTeX_SansSerif-Bold.woff2"; sourceTree = "<group>"; };
 		8E41763B0746E00E53BC2547 /* github.min.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = github.min.css; sourceTree = "<group>"; };
+		905D492C25F2F11ECEEEE5F4 /* QuickMarkdownTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = QuickMarkdownTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		93B66594A3D54DAC366F69B7 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		944C75B773638802D1D27C69 /* HTMLRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLRenderer.swift; sourceTree = "<group>"; };
 		9491B4684D6864F65C98E41A /* KaTeX_Typewriter-Regular.woff2 */ = {isa = PBXFileReference; path = "KaTeX_Typewriter-Regular.woff2"; sourceTree = "<group>"; };
@@ -132,12 +149,14 @@
 		BABA6661C6F9F543BFAB6979 /* MarkdownStructureIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownStructureIndex.swift; sourceTree = "<group>"; };
 		BAC3503D9D99709497871DCE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		BFCFE067F776BC61E6AEA61C /* WebRenderingEngines.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebRenderingEngines.swift; sourceTree = "<group>"; };
+		C40B1C1D72BD89BBFCDA8728 /* gfm-spec.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "gfm-spec.json"; sourceTree = "<group>"; };
 		C75D1D29E0926BE4AA0C9857 /* WebAssets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAssets.swift; sourceTree = "<group>"; };
 		CBF614CD1489E03C8DDAA324 /* HomeAccessOnboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeAccessOnboarding.swift; sourceTree = "<group>"; };
 		D886E5FABB5F35EC36E2AA66 /* LICENSE-KaTeX.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "LICENSE-KaTeX.txt"; sourceTree = "<group>"; };
 		D99BA14F13BE339EA5BF75A3 /* LICENSE-HighlightJS.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "LICENSE-HighlightJS.txt"; sourceTree = "<group>"; };
 		DD89D2132DDC0439D067C070 /* KaTeX_Math-BoldItalic.woff2 */ = {isa = PBXFileReference; path = "KaTeX_Math-BoldItalic.woff2"; sourceTree = "<group>"; };
 		DFA316EE035DCCB4E14B5C39 /* KaTeX_Math-Italic.woff2 */ = {isa = PBXFileReference; path = "KaTeX_Math-Italic.woff2"; sourceTree = "<group>"; };
+		E3E83EA730F2D7C73565BD2D /* SpecConformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpecConformanceTests.swift; sourceTree = "<group>"; };
 		E5F9FB3CD4AF9126483A621B /* mermaid.js.LEGAL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = mermaid.js.LEGAL.txt; sourceTree = "<group>"; };
 		E9B0687B5A221E8D93CDBD57 /* EditorViewController+Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EditorViewController+Format.swift"; sourceTree = "<group>"; };
 		EF4D6507F071BDBB47E40E1C /* KaTeX_SansSerif-Italic.woff2 */ = {isa = PBXFileReference; path = "KaTeX_SansSerif-Italic.woff2"; sourceTree = "<group>"; };
@@ -146,7 +165,7 @@
 		F5F12F1004BB24B6D444F334 /* KaTeX_Main-Regular.woff2 */ = {isa = PBXFileReference; path = "KaTeX_Main-Regular.woff2"; sourceTree = "<group>"; };
 		F915A50BC1A9877BD3CDC0E7 /* ReloadBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReloadBannerView.swift; sourceTree = "<group>"; };
 		FAACBFA09370FB87573D490C /* KaTeX_Size4-Regular.woff2 */ = {isa = PBXFileReference; path = "KaTeX_Size4-Regular.woff2"; sourceTree = "<group>"; };
-		"TEMP_8EC98234-5B52-4DC1-AC64-717F95142A69" /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		"TEMP_CFEC5FAE-0A0F-4182-A8FE-841239AA9282" /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -209,6 +228,7 @@
 			isa = PBXGroup;
 			children = (
 				71E0E795E63D75DD7E10E16F /* QuickMarkdown */,
+				5A63A9FB8179DDA9E879417C /* QuickMarkdownTests */,
 				CCD0BEDBF0BDA6F29D52B6E8 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -222,6 +242,15 @@
 				E5F9FB3CD4AF9126483A621B /* mermaid.js.LEGAL.txt */,
 			);
 			path = mermaid;
+			sourceTree = "<group>";
+		};
+		5A63A9FB8179DDA9E879417C /* QuickMarkdownTests */ = {
+			isa = PBXGroup;
+			children = (
+				905A32A11848A717134FD158 /* Fixtures */,
+				E3E83EA730F2D7C73565BD2D /* SpecConformanceTests.swift */,
+			);
+			path = QuickMarkdownTests;
 			sourceTree = "<group>";
 		};
 		71E0E795E63D75DD7E10E16F /* QuickMarkdown */ = {
@@ -295,10 +324,21 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		905A32A11848A717134FD158 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				3F45B30A9E15B432ED1000A3 /* cmark-extensions.json */,
+				77AA3A406C621FAB458AED9B /* commonmark-0.31.2-spec.json */,
+				C40B1C1D72BD89BBFCDA8728 /* gfm-spec.json */,
+			);
+			path = Fixtures;
+			sourceTree = "<group>";
+		};
 		CCD0BEDBF0BDA6F29D52B6E8 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				A82F0CBEE4E8ED6F0090054C /* QuickMarkdown.app */,
+				905D492C25F2F11ECEEEE5F4 /* QuickMarkdownTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -331,10 +371,10 @@
 			path = Editor;
 			sourceTree = "<group>";
 		};
-		"TEMP_63BC1259-A1EF-4D24-8792-9DE6172DEC1E" /* Quick Markdown */ = {
+		"TEMP_F19DC7AD-1D69-4ACF-9DA7-13376E9BCB56" /* Quick Markdown */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_8EC98234-5B52-4DC1-AC64-717F95142A69" /* Signing.xcconfig */,
+				"TEMP_CFEC5FAE-0A0F-4182-A8FE-841239AA9282" /* Signing.xcconfig */,
 			);
 			path = "Quick Markdown";
 			sourceTree = "<group>";
@@ -362,6 +402,25 @@
 			productReference = A82F0CBEE4E8ED6F0090054C /* QuickMarkdown.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F488164C4CF19DB1EC119570 /* QuickMarkdownTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5D9B0D7EFD337F46D2BE3616 /* Build configuration list for PBXNativeTarget "QuickMarkdownTests" */;
+			buildPhases = (
+				603148AB28F9B1813292DC43 /* Sources */,
+				D5295651F516A11D44C4E83C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8C7926AFB02892E5E4EB3B63 /* PBXTargetDependency */,
+			);
+			name = QuickMarkdownTests;
+			packageProductDependencies = (
+			);
+			productName = QuickMarkdownTests;
+			productReference = 905D492C25F2F11ECEEEE5F4 /* QuickMarkdownTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -372,6 +431,10 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					ABD9B0DA2B3C7173F99FD0DA = {
+						DevelopmentTeam = 8352865GK4;
+						ProvisioningStyle = Automatic;
+					};
+					F488164C4CF19DB1EC119570 = {
 						DevelopmentTeam = 8352865GK4;
 						ProvisioningStyle = Automatic;
 					};
@@ -395,11 +458,22 @@
 			projectRoot = "";
 			targets = (
 				ABD9B0DA2B3C7173F99FD0DA /* QuickMarkdown */,
+				F488164C4CF19DB1EC119570 /* QuickMarkdownTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		D5295651F516A11D44C4E83C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				77CDCAC1B78C8BFF5AE97495 /* cmark-extensions.json in Resources */,
+				5032FCF54B858671BAB339EC /* commonmark-0.31.2-spec.json in Resources */,
+				AD82227EF24BE3E61B157968 /* gfm-spec.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D95E798A8C70E83340E80442 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -443,6 +517,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		603148AB28F9B1813292DC43 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				893B243F68151663783BEEA3 /* SpecConformanceTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6CDF95991CE075DDBCD29360 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -486,10 +568,37 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		8C7926AFB02892E5E4EB3B63 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = ABD9B0DA2B3C7173F99FD0DA /* QuickMarkdown */;
+			targetProxy = 132BD830B53E961D8BDCF5F0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		4917A6E6C0DEDF3B33791CF1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = "TEMP_CFEC5FAE-0A0F-4182-A8FE-841239AA9282" /* Signing.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.neiljohn.quickmarkdown.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Quick Markdown.app/Contents/MacOS/Quick Markdown";
+			};
+			name = Release;
+		};
 		5E1D376B5DA5832189814595 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_8EC98234-5B52-4DC1-AC64-717F95142A69" /* Signing.xcconfig */;
+			baseConfigurationReference = "TEMP_CFEC5FAE-0A0F-4182-A8FE-841239AA9282" /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = QuickMarkdown/QuickMarkdown.entitlements;
@@ -583,7 +692,7 @@
 		};
 		71E4257EC7EC8AABE552715C /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_8EC98234-5B52-4DC1-AC64-717F95142A69" /* Signing.xcconfig */;
+			baseConfigurationReference = "TEMP_CFEC5FAE-0A0F-4182-A8FE-841239AA9282" /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = QuickMarkdown/QuickMarkdown.entitlements;
@@ -668,6 +777,25 @@
 			};
 			name = Release;
 		};
+		F59CE00941BFFE53FCBD34A8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = "TEMP_CFEC5FAE-0A0F-4182-A8FE-841239AA9282" /* Signing.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.neiljohn.quickmarkdown.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Quick Markdown.app/Contents/MacOS/Quick Markdown";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -676,6 +804,15 @@
 			buildConfigurations = (
 				60F81EAB2205D4787A322499 /* Debug */,
 				9C43E08B18E312AD94BF04CC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		5D9B0D7EFD337F46D2BE3616 /* Build configuration list for PBXNativeTarget "QuickMarkdownTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F59CE00941BFFE53FCBD34A8 /* Debug */,
+				4917A6E6C0DEDF3B33791CF1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

@@ -130,7 +130,7 @@ final class MarkdownTextStorage: NSTextStorage {
         backing.setAttributes(MarkdownStyles.defaultAttributes, range: fullRange)
 
         // 2. Parse with swift-markdown (GFM extensions enabled by default).
-        let document = Document(parsing: source, options: [.parseBlockDirectives])
+        let document = Document(parsing: source, options: [.parseBlockDirectives, .disableSmartOpts])
 
         // 3. Walk the AST applying attributes.
         let offsets = LineOffsetIndex(source: source)

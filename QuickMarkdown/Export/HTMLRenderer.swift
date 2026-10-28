@@ -76,6 +76,10 @@ struct HTMLRenderer: MarkupVisitor {
 
     // MARK: - Public entry point
 
+    /// As GitHub: no smart punctuation, so quotes stay straight and `--`
+    /// stays two hyphens (command-line flags in prose survive).
+    static let parseOptions: ParseOptions = [.disableSmartOpts]
+
     /// - Parameter richRendering: highlight code and typeset `$…$` / `$$…$$`
     ///   equations. PDF export wants this. The pasteboard does not: Word and
     ///   Outlook drop `<style>` blocks, and KaTeX markup without its
@@ -96,13 +100,13 @@ struct HTMLRenderer: MarkupVisitor {
             style: .html
         )
         guard richRendering else {
-            let document = Document(parsing: cleaned)
+            let document = Document(parsing: cleaned, options: Self.parseOptions)
             var renderer = HTMLRenderer(baseURL: baseURL)
             let body = renderer.visit(document)
             return Self.wrapInDocument(body: body, bodyCSS: renderer.bodyCSS)
         }
         let (rewritten, equations) = Self.extractEquations(from: cleaned)
-        let document = Document(parsing: rewritten)
+        let document = Document(parsing: rewritten, options: Self.parseOptions)
         var renderer = HTMLRenderer(baseURL: baseURL,
                                     richRendering: true,
                                     equations: equations)
@@ -120,7 +124,7 @@ struct HTMLRenderer: MarkupVisitor {
     /// glyphs with inline styles.
     static func renderBody(_ markdown: String, baseURL: URL? = nil) -> String {
         let (rewritten, equations) = Self.extractEquations(from: markdown)
-        let document = Document(parsing: rewritten)
+        let document = Document(parsing: rewritten, options: Self.parseOptions)
         var renderer = HTMLRenderer(baseURL: baseURL,
                                     richRendering: true,
                                     equations: equations)
@@ -223,7 +227,7 @@ struct HTMLRenderer: MarkupVisitor {
         // actually scroll the preview. swift-markdown doesn't auto-generate
         // these — without them the WKWebView resolves the fragment URL but
         // finds nothing to anchor to, and the click silently no-ops.
-        var plainText = Self.headingPlainText(heading)
+        var plainText = Self.plainText(heading)
         for equation in equations {
             plainText = plainText.replacingOccurrences(of: equation.token, with: equation.source)
         }
@@ -235,47 +239,101 @@ struct HTMLRenderer: MarkupVisitor {
         return "<h\(heading.level)\(idAttr) style=\"\(css)\">\(inner)</h\(heading.level)>\n"
     }
 
-    /// Collect the heading's plain-text content by concatenating every
-    /// `Text` and `InlineCode` descendant. Mirrors the input that GitHub's
-    /// slugger sees (it ignores emphasis / link wrappers and uses the
-    /// rendered text).
-    private static func headingPlainText(_ markup: any Markup) -> String {
+    /// Collect the plain-text content by concatenating every `Text` and
+    /// `InlineCode` descendant. Used for heading slugs (mirroring the input
+    /// GitHub's slugger sees: emphasis and link wrappers are ignored) and
+    /// for image alt text, which must not contain markup.
+    private static func plainText(_ markup: any Markup) -> String {
         var out = ""
         for child in markup.children {
             if let t = child as? Markdown.Text {
                 out += t.string
             } else if let c = child as? InlineCode {
                 out += c.code
+            } else if child is SoftBreak || child is LineBreak {
+                out += " "
             } else {
-                out += headingPlainText(child)
+                out += plainText(child)
             }
         }
         return out
     }
 
     /// GitHub-flavour heading slug: lowercase, strip everything that isn't
-    /// alphanumeric / space / hyphen / underscore, then replace each space
-    /// with a hyphen. Consecutive removed punctuation collapses into the
-    /// surrounding spaces, which produces the familiar `--` runs in
-    /// slugs like `part-65--sync-an-out-of-date-fork` (from
-    /// `Part 6.5 — Sync an out-of-date fork`).
+    /// a letter or number (in any script) / space / hyphen / underscore,
+    /// then replace each space with a hyphen. Consecutive removed
+    /// punctuation collapses into the surrounding spaces, which produces
+    /// the familiar `--` runs in slugs like `part-65--sync-an-out-of-date-fork`
+    /// (from `Part 6.5 — Sync an out-of-date fork`). `## Café` is `#café`.
     static func slugify(_ text: String) -> String {
         let lower = text.lowercased()
         var stripped = ""
         stripped.reserveCapacity(lower.count)
         for scalar in lower.unicodeScalars {
-            if (scalar.value >= 0x61 && scalar.value <= 0x7A) // a-z
-                || (scalar.value >= 0x30 && scalar.value <= 0x39) // 0-9
-                || scalar == "-" || scalar == "_" || scalar == " " {
-                stripped.unicodeScalars.append(scalar)
+            let keep: Bool
+            switch scalar.properties.generalCategory {
+            case .lowercaseLetter, .uppercaseLetter, .titlecaseLetter,
+                 .modifierLetter, .otherLetter, .decimalNumber, .letterNumber,
+                 .otherNumber, .nonspacingMark, .spacingMark:
+                keep = true
+            default:
+                keep = scalar == "-" || scalar == "_" || scalar == " "
             }
+            if keep { stripped.unicodeScalars.append(scalar) }
         }
         return stripped.replacingOccurrences(of: " ", with: "-")
     }
 
     mutating func visitParagraph(_ paragraph: Paragraph) -> String {
         let inner = visitChildren(paragraph)
+        // As on GitHub, paragraphs directly inside a tight list's items
+        // render bare, so the list isn't spaced out like a loose one.
+        if let item = paragraph.parent as? ListItem, Self.isInTightList(item) {
+            return inner + "\n"
+        }
         return "<p style=\"\(pCSS)\">\(inner)</p>\n"
+    }
+
+    // MARK: - List tightness
+
+    private static func isInTightList(_ item: ListItem) -> Bool {
+        guard let list = item.parent else { return false }
+        return isTight(list)
+    }
+
+    /// CommonMark's rule: a list is loose if any of its items are separated
+    /// by blank lines, or any item directly contains two block elements
+    /// with a blank line between them. swift-markdown doesn't expose cmark's
+    /// tight flag, so this reads the source lines instead.
+    static func isTight(_ list: any Markup) -> Bool {
+        let items = Array(list.children)
+        for (index, item) in items.enumerated() {
+            if index + 1 < items.count, Self.blankLineBetween(item, items[index + 1]) {
+                return false
+            }
+            let blocks = Array(item.children)
+            for j in blocks.indices.dropLast() where Self.blankLineBetween(blocks[j], blocks[j + 1]) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private static func blankLineBetween(_ first: any Markup, _ second: any Markup) -> Bool {
+        guard let end = lastLine(of: first),
+              let start = second.range?.lowerBound.line else { return false }
+        return start > end + 1
+    }
+
+    /// The last source line with content: containers end where their last
+    /// child does, so trailing blank lines inside an item don't count.
+    private static func lastLine(of markup: any Markup) -> Int? {
+        let isContainer = markup is ListItem
+            || markup is UnorderedList || markup is OrderedList
+        if isContainer, let last = Array(markup.children).last {
+            return lastLine(of: last)
+        }
+        return markup.range?.upperBound.line
     }
 
     mutating func visitBlockQuote(_ blockQuote: BlockQuote) -> String {
@@ -362,15 +420,9 @@ struct HTMLRenderer: MarkupVisitor {
                 continue
             }
             // Drop the marker line; keep the rest of the first paragraph.
-            var rest = ""
-            var pastMarker = false
-            for inline in paragraph.inlineChildren {
-                if pastMarker {
-                    rest += visit(inline)
-                } else if inline is SoftBreak || inline is LineBreak {
-                    pastMarker = true
-                }
-            }
+            let inlines = Array(paragraph.children)
+            let rest = inlines.firstIndex(where: { $0 is SoftBreak || $0 is LineBreak })
+                .map { renderSequence(inlines[($0 + 1)...], in: paragraph) } ?? ""
             if !rest.isEmpty {
                 out += "<p style=\"\(pCSS)\">\(rest)</p>\n"
             }
@@ -379,12 +431,14 @@ struct HTMLRenderer: MarkupVisitor {
     }
 
     mutating func visitCodeBlock(_ codeBlock: CodeBlock) -> String {
-        let language = codeBlock.language?.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        ) ?? ""
+        // The language is the info string's first word (` ```ruby startline=3 `).
+        let language = codeBlock.language?
+            .split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
         guard richRendering, !language.isEmpty else {
             let code = Self.escape(codeBlock.code)
-            return "<pre style=\"\(preCSS)\"><code>\(code)</code></pre>\n"
+            let languageClass = language.isEmpty
+                ? "" : " class=\"language-\(Self.escapeAttr(language))\""
+            return "<pre style=\"\(preCSS)\"><code\(languageClass)>\(code)</code></pre>\n"
         }
         // Unknown languages fall back to plain, escaped text. `mermaid`
         // is one of them; `MermaidRenderer` swaps those blocks for SVG
@@ -401,7 +455,7 @@ struct HTMLRenderer: MarkupVisitor {
         // (commonly used for centred README hero shots) renders as a
         // broken-image placeholder in the sandboxed preview because
         // WKWebView can't pick the file up off disk.
-        rewriteImageSources(in: html.rawHTML)
+        rewriteImageSources(in: Self.filterTags(html.rawHTML))
     }
 
     mutating func visitThematicBreak(_ thematicBreak: ThematicBreak) -> String {
@@ -415,7 +469,8 @@ struct HTMLRenderer: MarkupVisitor {
 
     mutating func visitOrderedList(_ list: OrderedList) -> String {
         let inner = visitChildren(list)
-        return "<ol style=\"\(olCSS)\">\n\(inner)</ol>\n"
+        let start = list.startIndex == 1 ? "" : " start=\"\(list.startIndex)\""
+        return "<ol\(start) style=\"\(olCSS)\">\n\(inner)</ol>\n"
     }
 
     mutating func visitListItem(_ listItem: ListItem) -> String {
@@ -428,18 +483,12 @@ struct HTMLRenderer: MarkupVisitor {
         //    preview, because `PreviewViewController.renderBody()` strips
         //    all inline `style="..."` attributes (so the class is the only
         //    thing that survives the round-trip).
-        // 2. **Inline first line.** swift-markdown wraps every list item's
-        //    text in a `Paragraph`, which becomes a block-level `<p>`. An
-        //    inline `<input type="checkbox">` followed by a block `<p>`
-        //    breaks onto two lines — the checkbox sits on its own row and
-        //    the item text drops below it. To keep the checkbox on the same
-        //    baseline as its title we unwrap the FIRST paragraph child
-        //    (rendering its inline content directly) and emit any
-        //    subsequent block children (code blocks, additional paragraphs,
-        //    nested lists for loose items) as-is. Matches GitHub's
-        //    rendering for both tight and loose task lists.
+        // 2. **Inline first line.** The checkbox goes inside the first
+        //    paragraph's content (bare in a tight list, inside its `<p>` in
+        //    a loose one), so it sits on the same baseline as the item's
+        //    text instead of on a row of its own. Matches GitHub's markup
+        //    for both tight and loose task lists.
         if let checked = listItem.checkbox {
-            let inner = unwrapLeadingParagraph(of: listItem)
             let mark = checked == .checked ? "checked" : ""
             let taskIndex = taskItemCounter
             taskItemCounter += 1
@@ -447,60 +496,84 @@ struct HTMLRenderer: MarkupVisitor {
             // consumers (Word, Outlook, PDF). The live preview strips it on
             // load and wires up its own click handler — see `renderHTML` in
             // `PreviewViewController`.
-            return "<li class=\"task-list-item\" style=\"\(liCSS)list-style:none;\"><input type=\"checkbox\" \(mark) disabled data-task-index=\"\(taskIndex)\" style=\"margin-right:6px;vertical-align:middle;\">\(inner)</li>\n"
+            let checkbox = "<input type=\"checkbox\" \(mark) disabled data-task-index=\"\(taskIndex)\" style=\"margin-right:4px;vertical-align:middle;\"> "
+            let tight = Self.isInTightList(listItem)
+            var inner = ""
+            var placed = false
+            for child in listItem.children {
+                if !placed, let paragraph = child as? Paragraph {
+                    let content = checkbox + visitChildren(paragraph)
+                    inner += tight ? content + "\n" : "<p style=\"\(pCSS)\">\(content)</p>\n"
+                    placed = true
+                } else {
+                    inner += visit(child)
+                }
+            }
+            if !placed { inner = checkbox + inner }
+            return "<li class=\"task-list-item\" style=\"\(liCSS)list-style:none;\">\(inner)</li>\n"
         }
         let inner = visitChildren(listItem)
         return "<li style=\"\(liCSS)\">\(inner)</li>\n"
     }
 
-    /// Renders a list item's children with the first child unwrapped if it
-    /// is a `Paragraph` — emit its inline content directly instead of
-    /// wrapping it in `<p>`. This keeps the leading text inline with
-    /// whatever marker the `<li>` starts with (the GFM task-list checkbox,
-    /// in our case) instead of dropping it onto a new line. Block children
-    /// after the first paragraph (code blocks, additional paragraphs,
-    /// nested lists) are emitted normally.
-    private mutating func unwrapLeadingParagraph(of listItem: ListItem) -> String {
-        var out = ""
-        var didUnwrap = false
-        for child in listItem.children {
-            if !didUnwrap, let para = child as? Paragraph {
-                out += visitChildren(para)
-                didUnwrap = true
-            } else {
-                out += visit(child)
-            }
-        }
-        return out
-    }
-
     mutating func visitTable(_ table: Markdown.Table) -> String {
+        // Column alignment goes in an `align` attribute as well as inline
+        // CSS: the Preview strips `style` attributes, so the attribute is
+        // what keeps `:---:` columns centred there.
+        let alignments = table.columnAlignments
+        func align(_ column: Int) -> (attribute: String, css: String) {
+            guard column < alignments.count, let alignment = alignments[column] else {
+                return ("", "")
+            }
+            let value: String
+            switch alignment {
+            case .left: value = "left"
+            case .center: value = "center"
+            case .right: value = "right"
+            }
+            return (" align=\"\(value)\"", "text-align:\(value);")
+        }
         var out = "<table style=\"\(tableCSS)\">\n"
         // Header
         var head = "<thead><tr>"
-        for cell in table.head.cells {
-            head += "<th style=\"\(thCSS)\">\(visitChildren(cell))</th>"
+        for (column, cell) in table.head.cells.enumerated() {
+            let a = align(column)
+            head += "<th\(a.attribute) style=\"\(thCSS)\(a.css)\">\(visitChildren(cell))</th>"
         }
         head += "</tr></thead>\n"
         out += head
-        // Body
-        out += "<tbody>\n"
-        for (i, row) in table.body.rows.enumerated() {
-            let zebra = (i % 2 == 1) ? "background:#fafafa;" : ""
-            out += "<tr style=\"\(zebra)\">"
-            for cell in row.cells {
-                out += "<td style=\"\(tdCSS)\">\(visitChildren(cell))</td>"
+        // Body (omitted when the table has no rows, as cmark does)
+        let rows = Array(table.body.rows)
+        if !rows.isEmpty {
+            out += "<tbody>\n"
+            for (i, row) in rows.enumerated() {
+                let zebra = (i % 2 == 1) ? "background:#fafafa;" : ""
+                out += "<tr style=\"\(zebra)\">"
+                for (column, cell) in row.cells.enumerated() {
+                    let a = align(column)
+                    out += "<td\(a.attribute) style=\"\(tdCSS)\(a.css)\">\(visitChildren(cell))</td>"
+                }
+                out += "</tr>\n"
             }
-            out += "</tr>\n"
+            out += "</tbody>\n"
         }
-        out += "</tbody>\n</table>\n"
+        out += "</table>\n"
         return out
     }
 
-    // MARK: - Inlines
-
     mutating func visitText(_ text: Markdown.Text) -> String {
-        Self.escape(text.string)
+        renderText(text.string, in: text.parent)
+    }
+
+    /// Escapes text and, outside links and images, turns bare URLs and
+    /// email addresses into links (GitHub's extended autolinks).
+    private func renderText(_ string: String, in container: (any Markup)?) -> String {
+        var ancestor = container
+        while let node = ancestor {
+            if node is Link || node is Markdown.Image { return Self.escape(string) }
+            ancestor = node.parent
+        }
+        return Self.autolinked(string)
     }
 
     mutating func visitSoftBreak(_ softBreak: SoftBreak) -> String { " " }
@@ -514,7 +587,7 @@ struct HTMLRenderer: MarkupVisitor {
         // Same image-inlining treatment as `visitHTMLBlock` so inline
         // `<img>` tags (e.g. inside a paragraph) also resolve to base64
         // data URLs in the sandboxed preview.
-        rewriteImageSources(in: inlineHTML.rawHTML)
+        rewriteImageSources(in: Self.filterTags(inlineHTML.rawHTML))
     }
 
     mutating func visitEmphasis(_ emphasis: Emphasis) -> String {
@@ -530,21 +603,22 @@ struct HTMLRenderer: MarkupVisitor {
     }
 
     mutating func visitLink(_ link: Link) -> String {
-        let href = link.destination.map { Self.escapeAttr($0) } ?? ""
+        let href = link.destination.map { Self.escapeAttr(Self.safeURL(Self.normalizeURL($0))) } ?? ""
         let title = link.title.map { " title=\"\(Self.escapeAttr($0))\"" } ?? ""
         return "<a href=\"\(href)\"\(title) style=\"color:#0066cc;text-decoration:underline;\">\(visitChildren(link))</a>"
     }
 
     mutating func visitImage(_ image: Markdown.Image) -> String {
-        let altRaw = visitChildren(image)
-        let alt = altRaw // already escaped by visitText
+        // Alt text is plain text: markup inside `![...]` must not end up
+        // in the attribute (it would break the tag).
+        let alt = Self.escapeAttr(Self.plainText(image))
         let title = image.title.map { " title=\"\(Self.escapeAttr($0))\"" } ?? ""
         let rawSrc = image.source ?? ""
         let resolvedSrc: String
         if let dataURL = inlineDataURL(forSource: rawSrc) {
             resolvedSrc = dataURL
         } else {
-            resolvedSrc = Self.escapeAttr(rawSrc)
+            resolvedSrc = Self.escapeAttr(Self.normalizeURL(rawSrc))
         }
         // `display:inline-block` (not `block`) so consecutive images in a
         // single paragraph — most obviously a row of README badges — flow
@@ -670,11 +744,210 @@ struct HTMLRenderer: MarkupVisitor {
     // MARK: - Helpers
 
     private mutating func visitChildren(_ markup: any Markup) -> String {
+        renderSequence(markup.children, in: markup)
+    }
+
+    /// Renders nodes in order, joining consecutive `Text` nodes first:
+    /// cmark splits text at characters like `&`, `!` and brackets, and an
+    /// autolink can span those splits.
+    private mutating func renderSequence(_ nodes: some Sequence<any Markup>,
+                                         in container: any Markup) -> String {
         var out = ""
-        for child in markup.children {
+        var pendingText = ""
+        for child in nodes {
+            if let text = child as? Markdown.Text {
+                pendingText += text.string
+                continue
+            }
+            if !pendingText.isEmpty {
+                out += renderText(pendingText, in: container)
+                pendingText = ""
+            }
             out += visit(child)
         }
+        if !pendingText.isEmpty {
+            out += renderText(pendingText, in: container)
+        }
         return out
+    }
+
+    // MARK: - URLs
+
+    /// Percent-encodes a link or image destination the way cmark does:
+    /// ASCII letters, digits and URL punctuation pass through (including
+    /// existing `%XX` escapes); spaces, backslashes, brackets, quotes and
+    /// non-ASCII bytes are encoded.
+    static func normalizeURL(_ url: String) -> String {
+        let safe = Set("-_.+!*'(),%#@?=;:/&$~".utf8)
+        var out = ""
+        out.reserveCapacity(url.utf8.count)
+        for byte in url.utf8 {
+            let isAlphanumeric = (0x30...0x39).contains(byte)
+                || (0x41...0x5A).contains(byte) || (0x61...0x7A).contains(byte)
+            if isAlphanumeric || safe.contains(byte) {
+                out.unicodeScalars.append(Unicode.Scalar(byte))
+            } else {
+                out += String(format: "%%%02X", byte)
+            }
+        }
+        return out
+    }
+
+    /// Drops script URLs from links, as GitHub does.
+    static func safeURL(_ url: String) -> String {
+        let scheme = url.prefix { $0 != ":" }.lowercased()
+        return ["javascript", "vbscript"].contains(scheme) ? "" : url
+    }
+
+    // MARK: - Raw HTML
+
+    /// GitHub's tag filter: these tags are shown as text rather than
+    /// interpreted, so a Markdown file can't run scripts, embed frames or
+    /// restyle the page.
+    static func filterTags(_ html: String) -> String {
+        html.replacingOccurrences(
+            of: #"<(?=/?(?:title|textarea|style|xmp|iframe|noembed|noframes|script|plaintext)(?:[\s/>]|$))"#,
+            with: "&lt;",
+            options: [.regularExpression, .caseInsensitive]
+        )
+    }
+
+    // MARK: - Autolinks
+
+    /// GitHub's extended autolinks (cmark-gfm's rules): `www.` domains,
+    /// `http://`, `https://` and `ftp://` URLs, email addresses, and
+    /// `mailto:` / `xmpp:` addresses in plain text become links. Trailing
+    /// punctuation, unbalanced closing parentheses and trailing entity-like
+    /// `&name;` text stay outside the link, as on GitHub.
+    static func autolinked(_ text: String) -> String {
+        let chars = Array(text)
+        guard chars.contains(where: { $0 == "." || $0 == ":" }),
+              chars.contains(where: { $0 == "w" || $0 == ":" || $0 == "@" }) else {
+            return escape(text)
+        }
+        var out = ""
+        var plainStart = 0
+        var i = 0
+        while i < chars.count {
+            if let match = autolinkMatch(chars, at: i) {
+                out += escape(String(chars[plainStart..<i]))
+                let label = String(chars[i..<(i + match.length)])
+                let href = escapeAttr(normalizeURL(match.prefix + label))
+                out += "<a href=\"\(href)\" style=\"color:#0066cc;text-decoration:underline;\">\(escape(label))</a>"
+                i += match.length
+                plainStart = i
+            } else {
+                i += 1
+            }
+        }
+        out += escape(String(chars[plainStart...]))
+        return out
+    }
+
+    private static func autolinkMatch(_ c: [Character], at i: Int) -> (length: Int, prefix: String)? {
+        let previous: Character? = i > 0 ? c[i - 1] : nil
+        let wwwBoundary = previous == nil || previous!.isWhitespace || "*_~(".contains(previous!)
+        if wwwBoundary, hasPrefix(c, at: i, "www."),
+           let length = extendedURLLength(c, from: i, domainStart: i, requireDot: true) {
+            return (length, "http://")
+        }
+        // A scheme just mustn't be glued to a preceding word.
+        let schemeBoundary = previous.map { !($0.isASCII && $0.isLetter) } ?? true
+        if schemeBoundary {
+            for scheme in ["http://", "https://", "ftp://"] where hasPrefix(c, at: i, scheme) {
+                if let length = extendedURLLength(c, from: i, domainStart: i + scheme.count,
+                                                  requireDot: false) {
+                    return (length, "")
+                }
+            }
+            for scheme in ["mailto:", "xmpp:"] where hasPrefix(c, at: i, scheme) {
+                if let email = emailLength(c, from: i + scheme.count) {
+                    var length = scheme.count + email
+                    // xmpp addresses can carry a /resource.
+                    if scheme == "xmpp:", i + length < c.count, c[i + length] == "/" {
+                        var end = i + length + 1
+                        while end < c.count, c[end].isLetter || c[end].isNumber || "@.".contains(c[end]) {
+                            end += 1
+                        }
+                        while end > i + length + 1, c[end - 1] == "." { end -= 1 }
+                        length = end - i
+                    }
+                    return (length, "")
+                }
+            }
+        }
+        let isLocal: (Character) -> Bool = { $0.isASCII && ($0.isLetter || $0.isNumber || ".-_+".contains($0)) }
+        if isLocal(c[i]), previous.map({ !isLocal($0) && $0 != "@" }) ?? true,
+           let length = emailLength(c, from: i) {
+            return (length, "mailto:")
+        }
+        return nil
+    }
+
+    private static func hasPrefix(_ c: [Character], at i: Int, _ prefix: String) -> Bool {
+        let p = Array(prefix)
+        guard i + p.count <= c.count else { return false }
+        for (k, ch) in p.enumerated() where c[i + k].lowercased() != String(ch) { return false }
+        return true
+    }
+
+    private static func isDomainCharacter(_ ch: Character) -> Bool {
+        !ch.isASCII || ch.isLetter || ch.isNumber || ch == "-" || ch == "_" || ch == "."
+    }
+
+    /// Length of a URL starting at `start` whose domain begins at
+    /// `domainStart`, or nil when the domain isn't valid.
+    private static func extendedURLLength(_ c: [Character], from start: Int, domainStart: Int,
+                                          requireDot: Bool) -> Int? {
+        var end = domainStart
+        while end < c.count, isDomainCharacter(c[end]) { end += 1 }
+        var domainEnd = end
+        while domainEnd > domainStart, c[domainEnd - 1] == "." { domainEnd -= 1 }
+        let segments = String(c[domainStart..<domainEnd]).split(separator: ".", omittingEmptySubsequences: false)
+        guard segments.count >= (requireDot ? 2 : 1), !segments.contains(where: \.isEmpty),
+              !segments.suffix(2).contains(where: { $0.contains("_") }) else { return nil }
+        // The path runs to whitespace or `<`.
+        while end < c.count, !c[end].isWhitespace, c[end] != "<" { end += 1 }
+        // Trim trailing punctuation, unbalanced `)` and entity-like `&x;`.
+        trimming: while end > domainEnd {
+            let last = c[end - 1]
+            if "?!.,:*_~'\"".contains(last) {
+                end -= 1
+            } else if last == ")" {
+                let link = c[start..<end]
+                if link.filter({ $0 == ")" }).count > link.filter({ $0 == "(" }).count {
+                    end -= 1
+                } else {
+                    break trimming
+                }
+            } else if last == ";" {
+                var k = end - 2
+                while k >= start, c[k].isASCII, c[k].isLetter || c[k].isNumber { k -= 1 }
+                if k >= start, c[k] == "&", k < end - 2 {
+                    end = k
+                } else {
+                    break trimming
+                }
+            } else {
+                break trimming
+            }
+        }
+        return end - start
+    }
+
+    /// Length of an email address starting at `start`, or nil.
+    private static func emailLength(_ c: [Character], from start: Int) -> Int? {
+        var at = start
+        while at < c.count, c[at].isASCII, c[at].isLetter || c[at].isNumber || ".-_+".contains(c[at]) { at += 1 }
+        guard at > start, at < c.count, c[at] == "@" else { return nil }
+        var end = at + 1
+        while end < c.count, c[end].isASCII, c[end].isLetter || c[end].isNumber || "-_.".contains(c[end]) { end += 1 }
+        while end > at + 1, c[end - 1] == "." { end -= 1 }
+        let domain = String(c[(at + 1)..<end])
+        let segments = domain.split(separator: ".", omittingEmptySubsequences: false)
+        guard segments.count >= 2, !segments.contains(where: \.isEmpty),
+              let last = domain.last, last != "-", last != "_" else { return nil }
+        return end - start
     }
 
     private static func escape(_ s: String) -> String {

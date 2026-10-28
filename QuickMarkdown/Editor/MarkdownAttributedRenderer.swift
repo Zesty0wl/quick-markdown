@@ -49,7 +49,7 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
             in: rewriteDocsImageDirectives(in: stripFrontMatter(source)),
             style: .plain
         )
-        let document = Document(parsing: cleaned, options: [.parseBlockDirectives])
+        let document = Document(parsing: cleaned, options: [.parseBlockDirectives, .disableSmartOpts])
         var renderer = MarkdownAttributedRenderer(baseURL: baseURL)
         let body = NSMutableAttributedString(attributedString: renderer.visit(document))
         // Trim trailing blank-paragraph padding so the preview doesn't end
@@ -72,7 +72,7 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
             in: rewriteDocsImageDirectives(in: stripFrontMatter(source)),
             style: .plain
         )
-        let document = Document(parsing: cleaned, options: [.parseBlockDirectives])
+        let document = Document(parsing: cleaned, options: [.parseBlockDirectives, .disableSmartOpts])
         var renderer = MarkdownAttributedRenderer(baseURL: baseURL, forPasteboard: true)
         let body = NSMutableAttributedString(attributedString: renderer.visit(document))
         while body.length > 0,
@@ -173,11 +173,11 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
 
     /// Output flavour for `rewriteFootnotes(in:style:)`.
     enum FootnoteOutputStyle: Sendable {
-        /// Inline `<sup id=…><a href=…>N</a></sup>` references and a
-        /// footnotes section anchored with `<span id=…>` markers, so
-        /// clicking a reference in the WKWebView jumps to the definition
-        /// and the back-link returns. Used by `HTMLRenderer` and the
-        /// live preview.
+        /// GitHub's markup: `<sup class="footnote-ref">` references and a
+        /// `<section class="footnotes">` list at the end, with label-based
+        /// ids so clicking a reference jumps to its definition and each
+        /// back-link returns to its reference. Footnote bodies stay
+        /// Markdown. Used by `HTMLRenderer` and the live preview.
         case html
         /// Plain `[N]` bracketed references and an unanchored numbered
         /// list at the bottom. Used by the attributed-string renderer so
@@ -257,9 +257,14 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
                             break
                         }
                     }
-                    definitions[label] = body.trimmingCharacters(
-                        in: .whitespacesAndNewlines
-                    )
+                    // Strip spaces after `]:` on the first line only; later
+                    // lines keep their indentation (a footnote can be an
+                    // indented code block).
+                    var bodyLines = body.components(separatedBy: "\n")
+                    bodyLines[0] = String(bodyLines[0].drop(while: { $0 == " " || $0 == "\t" }))
+                    definitions[label] = bodyLines.joined(separator: "\n")
+                        .trimmingCharacters(in: .newlines)
+                        .replacingOccurrences(of: #"\s+$"#, with: "", options: .regularExpression)
                     i = j
                     continue
                 }
@@ -321,8 +326,10 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
                 labelSeenCount[label] = occ
                 switch style {
                 case .html:
-                    let refId = (occ == 1) ? "fnref-\(n)" : "fnref-\(n)-\(occ)"
-                    out += "<sup id=\"\(refId)\"><a href=\"#fn-\(n)\">\(n)</a></sup>"
+                    // GitHub's markup: label-based ids, percent-escaped.
+                    let id = HTMLRenderer.normalizeURL(label)
+                    let refId = (occ == 1) ? "fnref-\(id)" : "fnref-\(id)-\(occ)"
+                    out += "<sup class=\"footnote-ref\"><a href=\"#fn-\(id)\" id=\"\(refId)\" data-footnote-ref>\(n)</a></sup>"
                 case .plain:
                     out += "[\(n)]"
                 }
@@ -341,18 +348,42 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
         // Pass 3 — append the footnotes section.
         var result = processed.joined(separator: "\n")
         while result.hasSuffix("\n") { result.removeLast() }
+        if style == .html {
+            // GitHub's structure: a section holding an ordered list, one
+            // item per footnote. Each body stays Markdown between blank
+            // lines (which end the surrounding HTML blocks), so footnotes
+            // can hold several paragraphs, quotes, lists and code.
+            result += "\n\n<section class=\"footnotes\" data-footnotes style=\"border-top:1px solid #e0e0e0;margin-top:24px;padding-top:8px;font-size:14px;\">\n<ol>\n"
+            for (idx, label) in orderedLabels.enumerated() {
+                let id = HTMLRenderer.normalizeURL(label)
+                let n = idx + 1
+                var backrefs: [String] = []
+                for occ in 1...(labelSeenCount[label] ?? 1) {
+                    let refId = occ == 1 ? "fnref-\(id)" : "fnref-\(id)-\(occ)"
+                    let index = occ == 1 ? "\(n)" : "\(n)-\(occ)"
+                    let mark = occ == 1 ? "↩" : "↩<sup class=\"footnote-ref\">\(occ)</sup>"
+                    backrefs.append("<a href=\"#\(refId)\" class=\"footnote-backref\" data-footnote-backref data-footnote-backref-idx=\"\(index)\" aria-label=\"Back to reference \(index)\">\(mark)</a>")
+                }
+                let backref = backrefs.joined(separator: " ")
+                var body = definitions[label] ?? ""
+                // The back-links follow the last paragraph's text, or go in
+                // a paragraph of their own after a code block.
+                let lastLine = body.components(separatedBy: "\n").last ?? ""
+                let endsInCode = lastLine.hasPrefix("    ") || lastLine.hasPrefix("\t")
+                    || lastLine.hasPrefix("```") || lastLine.hasPrefix("~~~")
+                body += endsInCode || body.isEmpty ? "\n\n\(backref)" : " \(backref)"
+                result += "<li id=\"fn-\(id)\">\n\n\(body)\n\n</li>\n"
+            }
+            result += "</ol>\n</section>\n"
+            return result
+        }
         result += "\n\n---\n\n**Footnotes**\n"
         for (idx, label) in orderedLabels.enumerated() {
             let n = idx + 1
             var body = definitions[label] ?? ""
             switch style {
             case .html:
-                // Collapse multi-paragraph bodies onto a single paragraph
-                // so the back-link stays attached. `<br><br>` keeps the
-                // visual paragraph break inside the same block-level item.
-                body = body.replacingOccurrences(of: "\n\n", with: "<br><br>")
-                body = body.replacingOccurrences(of: "\n", with: " ")
-                result += "\n<span id=\"fn-\(n)\"></span>**\(n).** \(body) [↩](#fnref-\(n))\n"
+                break
             case .plain:
                 body = body.replacingOccurrences(of: "\n\n", with: " ")
                 body = body.replacingOccurrences(of: "\n", with: " ")
@@ -374,6 +405,15 @@ struct MarkdownAttributedRenderer: @preconcurrency MarkupVisitor {
         for i in 1..<lines.count {
             let trimmed = lines[i].trimmingCharacters(in: .whitespaces)
             if trimmed == "---" || trimmed == "..." {
+                // Only YAML-looking blocks (at least one `key:` line) are
+                // front matter. Otherwise the `---` lines are thematic
+                // breaks or setext underlines, as in CommonMark.
+                let body = lines[1..<i]
+                let isYAML = body.contains { line in
+                    line.range(of: #"^[A-Za-z0-9_][A-Za-z0-9_ .-]*:(\s|$)"#,
+                               options: .regularExpression) != nil
+                }
+                guard isYAML else { return source }
                 let rest = lines[(i + 1)...].joined(separator: "\n")
                 return rest.trimmingCharacters(in: .newlines) + "\n"
             }

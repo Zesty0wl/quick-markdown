@@ -227,7 +227,9 @@ final class PreviewViewController: NSViewController {
     }
 
     /// The page's content: everything that changes when the document does.
-    private static func renderBody(source: String, baseURL: URL?) -> String {
+    /// Internal so the spec conformance tests render exactly what the
+    /// Preview shows.
+    static func renderBody(source: String, baseURL: URL?) -> String {
         let cleaned = MarkdownAttributedRenderer.rewriteFootnotes(
             in: MarkdownAttributedRenderer.rewriteDocsImageDirectives(
                 in: MarkdownAttributedRenderer.stripFrontMatter(source)
@@ -248,6 +250,11 @@ final class PreviewViewController: NSViewController {
         let theme = ReadingPreferences.shared.theme
         let font = ReadingPreferences.shared.fontFamily
         let body = renderBody(source: source, baseURL: baseURL)
+        // Only the page's own script (carrying this nonce) may run: scripts
+        // and event-handler attributes in a document's raw HTML don't.
+        // Scripts the app injects with evaluateJavaScript (Mermaid, in-place
+        // updates) aren't subject to the policy.
+        let scriptNonce = UUID().uuidString.replacingOccurrences(of: "-", with: "")
 
         let bg = theme.background.cssHex
         let fg = theme.foreground.cssHex
@@ -276,6 +283,7 @@ final class PreviewViewController: NSViewController {
         return """
         <!DOCTYPE html>
         <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-\(scriptNonce)'; style-src 'unsafe-inline'; img-src data: file: http: https:; media-src data: file: http: https:; font-src data: file:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
         <style id="qm-rich-css">\(richContentCSS)</style>
         <style>
         * { box-sizing: border-box; }
@@ -346,10 +354,20 @@ final class PreviewViewController: NSViewController {
            we rely on this class instead) and keep the checkbox + label on a
            single baseline. */
         li.task-list-item { list-style: none; }
-        li.task-list-item > input[type="checkbox"] {
-            margin-right: 6px;
+        li.task-list-item > input[type="checkbox"],
+        li.task-list-item > p > input[type="checkbox"] {
+            margin: 0 4px 0 -20px;
             vertical-align: middle;
         }
+        /* Nested lists in tight items sit close, as on GitHub. */
+        li > ul, li > ol { margin-bottom: 0; }
+        /* Footnotes section, as on GitHub. */
+        .footnotes {
+            border-top: 1px solid \(borderClr);
+            margin-top: 32px; padding-top: 12px;
+            font-size: 14px; color: \(secondaryFg);
+        }
+        .footnote-backref, sup.footnote-ref a { text-decoration: none; }
         hr { border: none; border-top: 1px solid \(borderClr); margin: 24px 0; }
         /* `inline-block` (not `block`) so consecutive images in a paragraph —
            most obviously a row of README shields.io badges — flow inline the
@@ -373,6 +391,10 @@ final class PreviewViewController: NSViewController {
             text-align: left;
         }
         tr:nth-child(even) td { background: \(stripeBg); }
+        /* Column alignment from the `:---:` row (more specific than th/td). */
+        th[align="left"], td[align="left"] { text-align: left; }
+        th[align="center"], td[align="center"] { text-align: center; }
+        th[align="right"], td[align="right"] { text-align: right; }
         .qm-highlight {
             background: rgba(255, 230, 0, 0.45);
             border-radius: 2px;
@@ -400,7 +422,7 @@ final class PreviewViewController: NSViewController {
         ::-webkit-scrollbar-corner { background: \(bg); }
         </style>
         </head><body><div id="qm-content">\(body)</div>
-        <script>
+        <script nonce="\(scriptNonce)">
         // Copy from the preview: hand Swift the selection as clean semantic
         // HTML instead of letting WebKit serialise it. WebKit's default copy
         // bakes every element's computed style into the markup — including
