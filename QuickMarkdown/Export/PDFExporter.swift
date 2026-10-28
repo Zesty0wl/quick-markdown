@@ -65,7 +65,9 @@ final class PDFExporter: NSObject, WKNavigationDelegate {
                          completion: @escaping @MainActor (Result<Data, Error>) -> Void) {
         let exporter = PDFExporter(completion: completion)
         exporter.strongSelf = exporter
-        let html = HTMLRenderer.renderDocument(markdownSource, baseURL: baseURL)
+        let html = HTMLRenderer.renderDocument(markdownSource,
+                                               baseURL: baseURL,
+                                               richRendering: true)
         // The renderer's body uses `max-width:740px;margin:0 auto;` which is
         // fine inside the 523pt content viewport — the auto margins collapse
         // to zero so content fills the printable area edge-to-edge.
@@ -97,8 +99,18 @@ final class PDFExporter: NSObject, WKNavigationDelegate {
 
     private func measureAndExport() async {
         do {
-            let result = try await webView.evaluateJavaScript(
-                "document.body.scrollHeight"
+            // A Mermaid failure leaves the diagram's source in the PDF
+            // rather than failing the export.
+            try? await MermaidRenderer.render(in: webView)
+            // Wait for web fonts (KaTeX's are inlined as data URLs and
+            // load asynchronously) so equations have their final size
+            // before the page height is measured. Measure the whole
+            // document, not `<body>`: the first heading's top margin
+            // collapses through the body and is missing from
+            // `body.scrollHeight`, which clipped the last line of the export.
+            let result = try await webView.callAsyncJavaScript(
+                "await document.fonts.ready; return document.documentElement.scrollHeight;",
+                contentWorld: .page
             )
             let height: CGFloat = Self.coerceHeight(result)
             let noSplit = try await collectNoSplitBoxes()
@@ -132,7 +144,7 @@ final class PDFExporter: NSObject, WKNavigationDelegate {
     private func collectNoSplitBoxes() async throws -> [NoSplitBox] {
         let js = """
         (function() {
-            var sel = 'img, pre, table, blockquote, h1, h2, h3, h4, h5, h6';
+            var sel = 'img, pre, table, blockquote, h1, h2, h3, h4, h5, h6, .katex-display, .qm-mermaid';
             var els = document.querySelectorAll(sel);
             var out = [];
             for (var i = 0; i < els.length; i++) {

@@ -83,4 +83,4 @@ MIT licensed. The source is yours. Read it, fork it, ship it.
 
 [MIT](LICENSE) © 2026 Neil Johnson
 
-Built with [`swift-markdown`](https://github.com/apple/swift-markdown) (Apache 2.0). OpenDyslexic font, when installed, © Abelardo Gonzalez under [SIL Open Font License 1.1](https://opendyslexic.org/about).
+Built with [`swift-markdown`](https://github.com/apple/swift-markdown) (Apache 2.0). Bundles [Highlight.js](https://highlightjs.org) (BSD 3-Clause), [KaTeX](https://katex.org) (MIT) and [Mermaid](https://mermaid.js.org) (MIT, with its dependencies' notices in `mermaid.js.LEGAL.txt`); their licence files ship in `QuickMarkdown/WebAssets`. OpenDyslexic font, when installed, © Abelardo Gonzalez under [SIL Open Font License 1.1](https://opendyslexic.org/about).

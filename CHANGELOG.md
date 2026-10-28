@@ -10,6 +10,55 @@ https://semver.org/spec/v2.0.0.html
 
 ## Unreleased
 
+## 1.0.10 - Unreleased
+
+### Added
+
+- **Syntax-highlighted code blocks.** Fenced code blocks that name a
+  language (` ```swift `, ` ```python `, …) are coloured in the Preview
+  and in PDF export, using a bundled, offline copy of Highlight.js 11.12
+  with GitHub light and dark themes. The Source view colours the same
+  blocks. Unknown languages and unlabelled fences stay plain.
+- **Equations.** `$…$` renders inline and `$$…$$` as a display block in
+  the Preview and in PDF export, using a bundled, offline copy of KaTeX
+  0.18.4. Dollars inside code, escaped `\$`, and prices such as
+  `$5 and $10` or `$5/$10` stay as text. Copying an equation from the
+  Preview pastes its TeX source. Copy Formatted keeps equations as TeX,
+  because Word and Outlook can't display KaTeX's markup.
+- **Mermaid diagrams.** ` ```mermaid ` blocks render as diagrams
+  (flowcharts, sequence, state, class and the other Mermaid types) in the
+  Preview, in light or dark to match the reading theme, and in PDF export,
+  using a bundled, offline Mermaid 11.17.2 in strict security mode. A
+  diagram with a syntax error keeps its source, with a note above it.
+  The script is only loaded into pages that contain a diagram. See
+  `test-files/03-mermaid.md`.
+
+### Fixed
+
+- **The view no longer jumps while another app or an agent edits the
+  file.** The Preview now updates in place instead of reloading: nothing
+  flashes, the block at the top of the window stays where it is when text
+  changes above or below it, and a reader at the bottom follows text added
+  there. Mermaid diagrams are drawn before the swap. The Source view
+  replaces only the changed text and keeps the top visible line in place,
+  and the caret moves with the text around it. Outside saves also no
+  longer trigger a second, full reload: the folder watcher meant for
+  images now ignores the document's own file and its atomic-save
+  temporaries.
+- **Duplicate headings get distinct link anchors.** A second "Notes"
+  heading is now `#notes-1`, as on GitHub, so links to it no longer jump
+  to the first one.
+- **Copy Formatted includes relative images.** Images such as
+  `![](media/photo.png)` are now resolved against the document's folder,
+  so they come through in the pasted copy.
+- **PDF export no longer clips the last line.** The page height was
+  measured from `<body>`, which leaves out the first heading's collapsed
+  top margin, so the final ~24 px of longer documents was cut off.
+- **Safer SVG images.** SVGs embedded in a document are now rendered with
+  scripts disabled, no network or file access, no navigation, a 25 MB
+  file limit, and at most 2048 points on the longest side.
+- Bumped `MARKETING_VERSION` to 1.0.10 and `CURRENT_PROJECT_VERSION` to 12.
+
 ## 1.0.9 - 2026-09-04
 
 ### Fixed

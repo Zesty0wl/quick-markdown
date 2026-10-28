@@ -214,7 +214,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
                 self.editor.applyExternalReload(from: doc)
                 self.preview.isStale = true
                 if self.currentMode == .preview {
-                    self.preview.render(source: doc.content,
+                    self.preview.update(source: doc.content,
                                         baseURL: doc.fileURL?.deletingLastPathComponent())
                 }
                 self.hideBannerIfNeeded()
@@ -286,7 +286,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
             return
         }
         mediaWatcher?.stop()
-        let watcher = MediaWatcher { [weak self] in
+        let watcher = MediaWatcher(ignoredFileName: url.lastPathComponent) { [weak self] in
             self?.handleMediaFolderChange()
         }
         watcher.start(watching: folder)
@@ -302,10 +302,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
         ImageLoader.clearCache()
         guard let doc = markdownDocument else { return }
         // The preview inlines images as base64 on every render, so the
-        // cheapest refresh is a full re-render. If the user is in Source
-        // mode we just mark stale and let the eventual switch re-render.
+        // refresh re-renders the content, in place so the reader keeps
+        // their place. If the user is in Source mode we just mark stale and
+        // let the eventual switch re-render.
         if currentMode == .preview {
-            preview.render(source: doc.content,
+            preview.update(source: doc.content,
                            baseURL: doc.fileURL?.deletingLastPathComponent())
         } else {
             preview.isStale = true
@@ -556,7 +557,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
         } else {
             source = doc.content
         }
-        FormattedPasteboardWriter.writeFormatted(markdownSource: source)
+        FormattedPasteboardWriter.writeFormatted(
+            markdownSource: source,
+            baseURL: doc.fileURL?.deletingLastPathComponent()
+        )
     }
 
     @objc func exportAsPDF(_ sender: Any?) {

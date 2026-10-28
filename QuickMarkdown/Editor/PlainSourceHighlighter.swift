@@ -123,5 +123,45 @@ enum PlainSourceHighlighter {
                 storage.addAttributes(attrs, range: match.range)
             }
         }
+        applyFencedCodeHighlighting(to: storage, source: source)
+    }
+
+    /// Colours the contents of fenced code blocks that name a language,
+    /// using the same Highlight.js grammar as the Preview. Overrides the
+    /// regex pass inside those blocks so Markdown rules don't bleed into code.
+    private static func applyFencedCodeHighlighting(
+        to storage: NSMutableAttributedString,
+        source: String
+    ) {
+        let text = source as NSString
+        let prefersDark = ReadingPreferences.shared.theme.prefersDark
+        for block in MarkdownStructureIndex(source: source).codeBlocks {
+            guard !block.language.isEmpty,
+                  block.contentRange.length > 0,
+                  NSMaxRange(block.contentRange) <= text.length else { continue }
+            let code = text.substring(with: block.contentRange)
+            guard let highlighted = WebRenderingEngines.attributedHighlight(
+                code,
+                language: block.language,
+                prefersDark: prefersDark
+            ), highlighted.length == block.contentRange.length else { continue }
+
+            storage.addAttributes(MarkdownStyles.plainSourceAttributes,
+                                  range: block.contentRange)
+            storage.removeAttribute(.strikethroughStyle, range: block.contentRange)
+            highlighted.enumerateAttribute(
+                .foregroundColor,
+                in: NSRange(location: 0, length: highlighted.length)
+            ) { value, tokenRange, _ in
+                guard let color = value as? NSColor else { return }
+                storage.addAttribute(
+                    .foregroundColor,
+                    value: color,
+                    range: NSRange(location: block.contentRange.location
+                                   + tokenRange.location,
+                                   length: tokenRange.length)
+                )
+            }
+        }
     }
 }

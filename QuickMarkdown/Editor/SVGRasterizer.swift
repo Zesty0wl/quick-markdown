@@ -31,17 +31,33 @@ enum SVGRasterizer {
     /// `viewBox` nor explicit width/height.
     private static let fallbackSize = NSSize(width: 1200, height: 800)
 
+    /// Largest SVG file we will try to render.
+    private static let maxFileSize = 25 * 1_024 * 1_024
+
+    /// Longest side, in points, of the rendered image.
+    private static let maxDimension: CGFloat = 2048
+
     /// Renders the SVG at `url` to a backing-store-resolution `NSImage`
     /// (rendered at 2× the SVG's intrinsic point size so it stays crisp
     /// on Retina), or `nil` if the file can't be read, parsed, or
     /// snapshotted within the render budget.
     static func rasterize(url: URL) -> NSImage? {
-        guard let data = try? Data(contentsOf: url),
+        guard let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              fileSize > 0, fileSize <= maxFileSize,
+              let data = try? Data(contentsOf: url, options: .mappedIfSafe),
+              data.count <= maxFileSize,
               let svgString = String(data: data, encoding: .utf8) else {
             return nil
         }
 
-        let intrinsic = parseIntrinsicSize(from: svgString) ?? fallbackSize
+        // Cap the longest side so a huge declared size can't allocate an
+        // enormous offscreen web view and bitmap.
+        let naturalSize = parseIntrinsicSize(from: svgString) ?? fallbackSize
+        guard naturalSize.width.isFinite, naturalSize.height.isFinite,
+              naturalSize.width > 0, naturalSize.height > 0 else { return nil }
+        let scale = min(1, maxDimension / max(naturalSize.width, naturalSize.height))
+        let intrinsic = NSSize(width: max(1, naturalSize.width * scale),
+                               height: max(1, naturalSize.height * scale))
 
         // We size the document to the SVG's intrinsic point size and let
         // WebKit lay it out. The snapshot itself is taken at 2× via
@@ -50,6 +66,7 @@ enum SVGRasterizer {
         let html = """
         <!doctype html>
         <html><head><meta charset="utf-8">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none';">
         <style>
           html, body { margin: 0; padding: 0; background: transparent;
                        width: \(Int(intrinsic.width))px;
@@ -63,7 +80,14 @@ enum SVGRasterizer {
         """
 
         let frame = NSRect(origin: .zero, size: intrinsic)
-        let webView = WKWebView(frame: frame, configuration: WKWebViewConfiguration())
+        // The SVG is untrusted document content: no scripts, no persistent
+        // storage, and (with the CSP above and a nil base URL) no loading of
+        // other files or network resources.
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+        configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
+        let webView = WKWebView(frame: frame, configuration: configuration)
         // Transparent background so the SVG composites cleanly on whatever
         // theme background the preview is using.
         webView.setValue(false, forKey: "drawsBackground")
@@ -87,7 +111,7 @@ enum SVGRasterizer {
             finished = true
         }
         webView.navigationDelegate = delegate
-        webView.loadHTMLString(html, baseURL: url.deletingLastPathComponent())
+        webView.loadHTMLString(html, baseURL: nil)
 
         let deadline = Date().addingTimeInterval(renderBudget)
         while !finished && Date() < deadline {
@@ -167,10 +191,27 @@ private final class SnapshotDelegate: NSObject, WKNavigationDelegate {
 
     private let completion: @MainActor (NSImage?) -> Void
     private var fired = false
+    private var didAllowInitialNavigation = false
 
     init(_ completion: @escaping @MainActor (NSImage?) -> Void) {
         self.completion = completion
         super.init()
+    }
+
+    /// Allows only the initial `about:blank` load of our HTML string, so
+    /// links or redirects inside the SVG can't navigate anywhere.
+    @MainActor
+    func webView(_ webView: WKWebView,
+                 decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
+        guard !didAllowInitialNavigation,
+              navigationAction.targetFrame?.isMainFrame == true,
+              navigationAction.request.url?.absoluteString == "about:blank" else {
+            decisionHandler(.cancel)
+            return
+        }
+        didAllowInitialNavigation = true
+        decisionHandler(.allow)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

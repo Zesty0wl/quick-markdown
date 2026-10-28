@@ -217,8 +217,13 @@ final class EditorViewController: NSViewController {
     }
 
     /// Core buffer replacement. `resetCursor` resets selection to the start;
-    /// otherwise we clamp the existing selection to the new length.
-    /// `followBottom` overrides scroll preservation and snaps to the bottom.
+    /// otherwise the caret moves with the text around it. `followBottom`
+    /// overrides scroll preservation and snaps to the bottom.
+    ///
+    /// Only the changed span is replaced, and the first visible line is
+    /// kept where it was on screen, so an outside edit above or below the
+    /// reader (an agent working on the file) doesn't move what they're
+    /// looking at.
     private func applyContent(_ new: String,
                               resetCursor: Bool,
                               followBottom: Bool) {
@@ -228,20 +233,20 @@ final class EditorViewController: NSViewController {
         // Capture pre-change state for restoration.
         let priorSelection = textView.selectedRange()
         let priorScrollOrigin = scrollView.contentView.bounds.origin
+        let anchor = (resetCursor || followBottom) ? nil : visibleTopAnchor()
 
-        if textStorage.string != new {
-            let fullRange = NSRange(location: 0, length: textStorage.length)
-            textStorage.replaceCharacters(in: fullRange, with: new)
+        let change = Self.changedRanges(from: textStorage.string, to: new)
+        if let change {
+            let replacement = (new as NSString).substring(with: change.new)
+            textStorage.replaceCharacters(in: change.old, with: replacement)
         }
 
         if resetCursor {
             textView.setSelectedRange(NSRange(location: 0, length: 0))
             textStorage.cursorLocation = 0
         } else {
-            let clamped = NSRange(
-                location: min(priorSelection.location, textStorage.length),
-                length: 0
-            )
+            let location = Self.map(priorSelection.location, through: change)
+            let clamped = NSRange(location: min(location, textStorage.length), length: 0)
             textView.setSelectedRange(clamped)
             textStorage.cursorLocation = clamped.location
         }
@@ -264,13 +269,80 @@ final class EditorViewController: NSViewController {
             layoutManager.ensureLayout(for: textContainer)
             textView.needsLayout = true
             textView.layoutSubtreeIfNeeded()
-            // Preserve the scroll origin (clamped to the new content size).
+            // Keep the first visible character's line at the same height on
+            // screen; without an anchor, keep the scroll offset. Either way,
+            // clamp to the new content size.
             let maxY = max(0, textView.frame.height
                            - scrollView.contentView.bounds.height)
-            let y = min(priorScrollOrigin.y, maxY)
+            var y = priorScrollOrigin.y
+            if let anchor, textStorage.length > 0 {
+                let character = min(Self.map(anchor.character, through: change),
+                                    textStorage.length - 1)
+                let glyph = layoutManager.glyphIndexForCharacter(at: character)
+                let line = layoutManager.lineFragmentRect(forGlyphAt: glyph,
+                                                          effectiveRange: nil)
+                y = line.minY + textView.textContainerOrigin.y - anchor.offset
+            }
+            y = max(0, min(y, maxY))
             scrollView.contentView.scroll(to: NSPoint(x: priorScrollOrigin.x, y: y))
             scrollView.reflectScrolledClipView(scrollView.contentView)
         }
+    }
+
+    /// The first character on the top visible line, and how far that line
+    /// sits below the top of the viewport.
+    private func visibleTopAnchor() -> (character: Int, offset: CGFloat)? {
+        guard textStorage.length > 0 else { return nil }
+        let visible = scrollView.contentView.bounds
+        let origin = textView.textContainerOrigin
+        let point = NSPoint(x: 0, y: max(0, visible.minY - origin.y))
+        let glyph = layoutManager.glyphIndex(for: point, in: textContainer)
+        let line = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        let character = layoutManager.characterIndexForGlyph(at: glyph)
+        return (character, line.minY + origin.y - visible.minY)
+    }
+
+    /// The span that differs between `old` and `new` (in UTF-16 units),
+    /// found by trimming their common prefix and suffix. `nil` when equal.
+    static func changedRanges(from old: String,
+                              to new: String) -> (old: NSRange, new: NSRange)? {
+        let a = old as NSString
+        let b = new as NSString
+        if a.isEqual(to: new as String) { return nil }
+        let limit = min(a.length, b.length)
+        var prefix = 0
+        while prefix < limit, a.character(at: prefix) == b.character(at: prefix) {
+            prefix += 1
+        }
+        // Don't split a surrogate pair.
+        if prefix > 0, prefix < limit,
+           UTF16.isLeadSurrogate(a.character(at: prefix - 1)) {
+            prefix -= 1
+        }
+        var suffix = 0
+        while suffix < limit - prefix,
+              a.character(at: a.length - 1 - suffix) == b.character(at: b.length - 1 - suffix) {
+            suffix += 1
+        }
+        if suffix > 0, suffix < limit - prefix,
+           UTF16.isTrailSurrogate(a.character(at: a.length - suffix)) {
+            suffix -= 1
+        }
+        return (NSRange(location: prefix, length: a.length - prefix - suffix),
+                NSRange(location: prefix, length: b.length - prefix - suffix))
+    }
+
+    /// Where a location in the old text ends up after `change`: unchanged
+    /// before it, shifted by the length difference after it, and at the
+    /// start of the replacement if it was inside the changed span.
+    static func map(_ location: Int,
+                    through change: (old: NSRange, new: NSRange)?) -> Int {
+        guard let change else { return location }
+        if location < change.old.location { return location }
+        if location >= NSMaxRange(change.old) {
+            return location + change.new.length - change.old.length
+        }
+        return change.new.location
     }
 
     private func scrollToBottom() {

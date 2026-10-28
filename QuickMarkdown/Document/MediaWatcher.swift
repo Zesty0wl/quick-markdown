@@ -20,9 +20,11 @@ import CoreServices  // FSEvents
 ///
 /// `kFSEventStreamCreateFlagIgnoreSelf` keeps the watcher from firing on
 /// writes from the QuickMarkdown process itself (e.g. the document
-/// auto-saving its own `.md`), so the only source of duplicate renders
-/// would be a tool that explicitly does cross-process writes — which is
-/// fine and what we want.
+/// auto-saving its own `.md`). Writes to the document from *other*
+/// processes (an agent or another editor) are ignored by name, along with
+/// the temporary files an atomic save creates beside it, because
+/// `MarkdownDocument` already handles those; reacting here too caused a
+/// second, full preview reload on every outside save.
 ///
 /// `onChange` is captured at construction time so it can be read off the
 /// internal serial queue without further synchronisation, which keeps the
@@ -30,6 +32,9 @@ import CoreServices  // FSEvents
 final class MediaWatcher: @unchecked Sendable {
 
     private let onChange: @MainActor () -> Void
+
+    /// File name of the watched document, whose own changes are skipped.
+    private let ignoredFileName: String?
 
     private let queue = DispatchQueue(
         label: "QuickMarkdown.MediaWatcher",
@@ -41,7 +46,8 @@ final class MediaWatcher: @unchecked Sendable {
 
     private var stream: FSEventStreamRef?
 
-    init(onChange: @escaping @MainActor () -> Void) {
+    init(ignoredFileName: String? = nil, onChange: @escaping @MainActor () -> Void) {
+        self.ignoredFileName = ignoredFileName
         self.onChange = onChange
     }
 
@@ -92,13 +98,18 @@ final class MediaWatcher: @unchecked Sendable {
         let paths = [folderURL.path] as CFArray
         let flags = UInt32(
             kFSEventStreamCreateFlagFileEvents
+            | kFSEventStreamCreateFlagUseCFTypes
             | kFSEventStreamCreateFlagNoDefer
             | kFSEventStreamCreateFlagIgnoreSelf
         )
 
-        let callback: FSEventStreamCallback = { _, info, _, _, _, _ in
+        let callback: FSEventStreamCallback = { _, info, _, eventPaths, _, _ in
             guard let info else { return }
             let me = Unmanaged<MediaWatcher>.fromOpaque(info).takeUnretainedValue()
+            // With `UseCFTypes`, the paths arrive as a CFArray of CFStrings.
+            let paths = Unmanaged<CFArray>.fromOpaque(eventPaths)
+                .takeUnretainedValue() as? [String] ?? []
+            if !paths.isEmpty, paths.allSatisfy(me.isIgnored) { return }
             me.fire()
         }
 
@@ -126,6 +137,14 @@ final class MediaWatcher: @unchecked Sendable {
             FSEventStreamRelease(s)
         }
         stream = nil
+    }
+
+    /// True for the document itself and for atomic-save temporaries named
+    /// after it (`notes.md.tmp.123`, `.notes.md.swp`, ...).
+    private func isIgnored(_ path: String) -> Bool {
+        guard let ignoredFileName else { return false }
+        let name = (path as NSString).lastPathComponent
+        return name.hasPrefix(ignoredFileName) || name.hasPrefix("." + ignoredFileName)
     }
 
     private func fire() {

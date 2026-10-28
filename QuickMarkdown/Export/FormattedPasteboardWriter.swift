@@ -8,14 +8,15 @@ enum FormattedPasteboardWriter {
 
     @MainActor
     static func writeFormatted(markdownSource: String,
+                               baseURL: URL? = nil,
                                to pasteboard: NSPasteboard = .general) {
-        let html = HTMLRenderer.renderDocument(markdownSource)
+        let html = HTMLRenderer.renderDocument(markdownSource, baseURL: baseURL)
         // Use the pasteboard-mode renderer so list items carry NSTextList
         // paragraph attributes. AppKit's RTF serializer turns those into a
         // proper `\listtable` / `\ls` group, which Word for Mac and Outlook
         // recognise as native bullet / numbered paragraphs (instead of
         // treating the marker as literal "- " text).
-        let attributed = MarkdownAttributedRenderer.renderForPasteboard(markdownSource)
+        let attributed = MarkdownAttributedRenderer.renderForPasteboard(markdownSource, baseURL: baseURL)
         let rtf = RTFRenderer.data(from: attributed)
 
         pasteboard.clearContents()

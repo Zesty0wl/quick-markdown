@@ -16,6 +16,15 @@ final class PreviewViewController: NSViewController {
     /// Last source we rendered. Cached so theme changes can re-render.
     private var lastRenderedSource: String = ""
 
+    /// Bumped on every render so a slow Mermaid pass from an earlier page
+    /// doesn't restore scroll over a newer one.
+    private var renderGeneration = 0
+
+    /// Shell signature of the page currently in the web view, once it has
+    /// finished loading. `nil` while a full load is in flight.
+    private var loadedShellSignature: String?
+    private var pendingShellSignature: String?
+
     /// Folder URL of the document being previewed, used by the renderer to
     /// resolve relative image paths.
     fileprivate var lastRenderedBaseURL: URL?
@@ -119,6 +128,9 @@ final class PreviewViewController: NSViewController {
     ///   after the re-render (the existing "preserve scroll across re-render"
     ///   behaviour).
     func render(source: String, baseURL: URL? = nil, scrollFraction: Double? = nil) {
+        renderGeneration += 1
+        loadedShellSignature = nil
+        pendingShellSignature = Self.shellSignature
         lastRenderedSource = source
         lastRenderedBaseURL = baseURL
 
@@ -140,6 +152,50 @@ final class PreviewViewController: NSViewController {
         let html = Self.renderHTML(source: source, baseURL: baseURL)
         webView.loadHTMLString(html, baseURL: baseURL)
         isStale = false
+    }
+
+    /// Shows new content for the same document without reloading the page,
+    /// so nothing flashes and the reader keeps their place: the block at
+    /// the top of the window stays put when text changes above or below
+    /// it, and a reader at the bottom follows text added there. Used when
+    /// the file changes on disk (for example while an agent edits it).
+    /// Falls back to a full `render` if the page isn't loaded yet or its
+    /// theme, font or folder has changed.
+    func update(source: String, baseURL: URL? = nil) {
+        guard loadedShellSignature == Self.shellSignature,
+              baseURL == lastRenderedBaseURL else {
+            render(source: source, baseURL: baseURL)
+            return
+        }
+        renderGeneration += 1
+        let generation = renderGeneration
+        lastRenderedSource = source
+        isStale = false
+        let body = Self.renderBody(source: source, baseURL: baseURL)
+        let prefersDark = ReadingPreferences.shared.theme.prefersDark
+        let css = HTMLRenderer.richContentCSS(for: body, prefersDark: prefersDark)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                _ = try await self.webView.callAsyncJavaScript(
+                    "qmStageContent(html);", arguments: ["html": body],
+                    in: nil, contentWorld: .page)
+                do {
+                    try await MermaidRenderer.render(in: self.webView, prefersDark: prefersDark)
+                } catch {
+                    NSLog("[QuickMarkdown] Mermaid rendering failed: %@", error.localizedDescription)
+                }
+                // A newer update or a full render has taken over.
+                guard self.renderGeneration == generation else { return }
+                _ = try await self.webView.callAsyncJavaScript(
+                    "return qmCommitContent(css);", arguments: ["css": css],
+                    in: nil, contentWorld: .page)
+            } catch {
+                NSLog("[QuickMarkdown] In-place preview update failed: %@", error.localizedDescription)
+                guard self.renderGeneration == generation else { return }
+                self.render(source: source, baseURL: baseURL)
+            }
+        }
     }
 
     /// Read the preview's current scroll position as a fraction in `0...1`.
@@ -170,18 +226,28 @@ final class PreviewViewController: NSViewController {
         """)
     }
 
-    /// Build a complete HTML page with theme-aware CSS.
-    private static func renderHTML(source: String, baseURL: URL?) -> String {
-        let theme = ReadingPreferences.shared.theme
-        let font = ReadingPreferences.shared.fontFamily
-
+    /// The page's content: everything that changes when the document does.
+    private static func renderBody(source: String, baseURL: URL?) -> String {
         let cleaned = MarkdownAttributedRenderer.rewriteFootnotes(
             in: MarkdownAttributedRenderer.rewriteDocsImageDirectives(
                 in: MarkdownAttributedRenderer.stripFrontMatter(source)
             ),
             style: .html
         )
-        let body = HTMLRenderer.renderBody(cleaned, baseURL: baseURL)
+        return HTMLRenderer.renderBody(cleaned, baseURL: baseURL)
+    }
+
+    /// Identifies the page shell (theme and font). An in-place update is
+    /// only possible while this matches the loaded page.
+    private static var shellSignature: String {
+        "\(ReadingPreferences.shared.theme)|\(ReadingPreferences.shared.fontFamily)"
+    }
+
+    /// Build a complete HTML page with theme-aware CSS.
+    private static func renderHTML(source: String, baseURL: URL?) -> String {
+        let theme = ReadingPreferences.shared.theme
+        let font = ReadingPreferences.shared.fontFamily
+        let body = renderBody(source: source, baseURL: baseURL)
 
         let bg = theme.background.cssHex
         let fg = theme.foreground.cssHex
@@ -193,6 +259,8 @@ final class PreviewViewController: NSViewController {
         let headerBg = theme.tableHeaderBackground.cssHex
         let stripeBg = theme.tableStripe.cssHex
         let bqAccent = NSColor.controlAccentColor.cssHex
+        let richContentCSS = HTMLRenderer.richContentCSS(for: body,
+                                                         prefersDark: theme.prefersDark)
 
         let bodyFont: String
         switch font {
@@ -205,6 +273,7 @@ final class PreviewViewController: NSViewController {
         return """
         <!DOCTYPE html>
         <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+        <style id="qm-rich-css">\(richContentCSS)</style>
         <style>
         * { box-sizing: border-box; }
         body {
@@ -315,7 +384,7 @@ final class PreviewViewController: NSViewController {
         }
         ::-webkit-scrollbar-corner { background: \(bg); }
         </style>
-        </head><body>\(body)
+        </head><body><div id="qm-content">\(body)</div>
         <script>
         // Copy from the preview: hand Swift the selection as clean semantic
         // HTML instead of letting WebKit serialise it. WebKit's default copy
@@ -336,6 +405,16 @@ final class PreviewViewController: NSViewController {
             for (var i = 0; i < sel.rangeCount; i++) {
                 content.appendChild(sel.getRangeAt(i).cloneContents());
             }
+            // Equations paste as their TeX source (`$…$`, `$$…$$`). KaTeX's
+            // markup falls apart once its classes and inline styles go.
+            [['.katex-display', '$$'], ['.katex', '$']].forEach(function(kind) {
+                content.querySelectorAll(kind[0]).forEach(function(el) {
+                    var tex = el.querySelector('annotation[encoding="application/x-tex"]');
+                    if (!tex) return;
+                    el.replaceWith(document.createTextNode(
+                        kind[1] + tex.textContent + kind[1]));
+                });
+            });
             // Theme classes, heading anchor ids, task-list indices, inline
             // style: none of it belongs in the pasted document.
             content.querySelectorAll('*').forEach(function(el) {
@@ -350,18 +429,19 @@ final class PreviewViewController: NSViewController {
                 text: sel.toString()
             });
         });
-        // After load, send plain text to Swift for speech and restore scroll.
-        window.addEventListener('load', function() {
+        // After load (and after each in-place update), send plain text to
+        // Swift for speech and wire up the task-list checkboxes.
+        function qmEnhance() {
             window.webkit.messageHandlers.quickMarkdown.postMessage({
                 type: 'plainText',
-                text: document.body.innerText
+                text: document.getElementById('qm-content').innerText
             });
             // Enable interactive task-list checkboxes. The HTML renderer
             // emits `<input type="checkbox" disabled data-task-index="N">`
             // (the `disabled` keeps it inert for export consumers like Word
             // and PDF); we strip `disabled` and route click events back to
             // Swift, which flips the Nth `[ ]` / `[x]` marker in the source.
-            document.querySelectorAll('input[data-task-index]').forEach(function(el) {
+            document.querySelectorAll('#qm-content input[data-task-index]').forEach(function(el) {
                 el.removeAttribute('disabled');
                 el.addEventListener('click', function() {
                     var idx = parseInt(el.getAttribute('data-task-index'), 10);
@@ -372,13 +452,78 @@ final class PreviewViewController: NSViewController {
                     });
                 });
             });
-        });
+        }
+        window.addEventListener('load', qmEnhance);
+        // In-place updates (the file changed on disk, e.g. an agent is
+        // editing it). New content is staged hidden so Mermaid can draw its
+        // diagrams first, then swapped in with the reader's place kept.
+        function qmStageContent(html) {
+            var old = document.getElementById('qm-staging');
+            if (old) old.remove();
+            var staging = document.createElement('div');
+            staging.id = 'qm-staging';
+            staging.setAttribute('aria-hidden', 'true');
+            staging.style.cssText = 'visibility:hidden;height:0;overflow:hidden;';
+            staging.innerHTML = html;
+            document.getElementById('qm-content').after(staging);
+        }
+        function qmCommitContent(css) {
+            var staging = document.getElementById('qm-staging');
+            if (!staging) return false;
+            var anchor = qmCaptureAnchor();
+            currentHighlight = null;
+            document.getElementById('qm-rich-css').textContent = css;
+            document.getElementById('qm-content').replaceChildren(...staging.childNodes);
+            staging.remove();
+            qmRestoreAnchor(anchor);
+            qmEnhance();
+            return true;
+        }
+        // Where the reader is: pinned to the bottom (following new text),
+        // or the first visible top-level block and how far down the window
+        // it sits, so text added or removed above doesn't move the view.
+        function qmCaptureAnchor() {
+            var maxY = document.documentElement.scrollHeight - window.innerHeight;
+            if (window.scrollY > 0 && window.scrollY >= maxY - 40) return { bottom: true };
+            var blocks = document.getElementById('qm-content').children;
+            for (var i = 0; i < blocks.length; i++) {
+                var rect = blocks[i].getBoundingClientRect();
+                if (rect.bottom > 0) {
+                    return { index: i, count: blocks.length,
+                             key: qmBlockKey(blocks[i]), offset: rect.top };
+                }
+            }
+            return null;
+        }
+        function qmBlockKey(el) {
+            return el.tagName + '|' + (el.textContent || '').trim().slice(0, 120);
+        }
+        function qmRestoreAnchor(anchor) {
+            if (!anchor) return;
+            if (anchor.bottom) {
+                window.scrollTo(0, document.documentElement.scrollHeight);
+                return;
+            }
+            // The same block, nearest its old position (allowing for blocks
+            // added or removed above it). If it's gone, the scroll offset
+            // stays as it was.
+            var blocks = document.getElementById('qm-content').children;
+            var shifted = anchor.index + blocks.length - anchor.count;
+            var best = -1, bestDistance = Infinity;
+            for (var i = 0; i < blocks.length; i++) {
+                if (qmBlockKey(blocks[i]) !== anchor.key) continue;
+                var distance = Math.min(Math.abs(i - anchor.index), Math.abs(i - shifted));
+                if (distance < bestDistance) { best = i; bestDistance = distance; }
+            }
+            if (best < 0) return;
+            window.scrollBy(0, blocks[best].getBoundingClientRect().top - anchor.offset);
+        }
         // Speech highlighting: wrap character range in a span.
         var currentHighlight = null;
         function highlightRange(start, length) {
             clearHighlight();
             if (start < 0 || length <= 0) return;
-            var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            var walker = document.createTreeWalker(document.getElementById('qm-content'), NodeFilter.SHOW_TEXT);
             var pos = 0;
             while (walker.nextNode()) {
                 var node = walker.currentNode;
@@ -419,6 +564,26 @@ final class PreviewViewController: NSViewController {
         view.layer?.backgroundColor = theme.background.cgColor
         if !lastRenderedSource.isEmpty {
             render(source: lastRenderedSource, baseURL: lastRenderedBaseURL)
+        }
+    }
+
+    /// Called when the page has loaded: draws any Mermaid diagrams, which
+    /// changes the page height, then restores the scroll position.
+    fileprivate func finishRendering() {
+        let generation = renderGeneration
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await MermaidRenderer.render(
+                    in: self.webView,
+                    prefersDark: ReadingPreferences.shared.theme.prefersDark
+                )
+            } catch {
+                NSLog("[QuickMarkdown] Mermaid rendering failed: %@", error.localizedDescription)
+            }
+            guard self.renderGeneration == generation else { return }
+            self.loadedShellSignature = self.pendingShellSignature
+            self.restoreScroll()
         }
     }
 
@@ -477,7 +642,7 @@ private final class WebMessageHandler: NSObject, WKScriptMessageHandler, WKNavig
 
     @MainActor
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        owner?.restoreScroll()
+        owner?.finishRendering()
     }
 
     // Block external navigation — only allow local content.

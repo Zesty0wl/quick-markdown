@@ -24,8 +24,26 @@ struct HTMLRenderer: MarkupVisitor {
     /// the source. (Export consumers like Word / PDF ignore the attribute.)
     private var taskItemCounter: Int = 0
 
-    init(baseURL: URL? = nil) {
+    /// Per-base-slug occurrence counts so duplicate headings get distinct
+    /// ids the way GitHub numbers them (`title`, `title-1`, `title-2`, ...).
+    private var headingSlugCounts: [String: Int] = [:]
+
+    /// When true, fenced code blocks with a known language are coloured
+    /// with the bundled Highlight.js.
+    private let highlightsCode: Bool
+
+    /// Equations swapped out for placeholder tokens before parsing. Kept so
+    /// heading slugs use the TeX source rather than the token.
+    private let equations: [Equation]
+
+    private init(baseURL: URL?, highlightsCode: Bool, equations: [Equation]) {
         self.baseURL = baseURL
+        self.highlightsCode = highlightsCode
+        self.equations = equations
+    }
+
+    init(baseURL: URL? = nil) {
+        self.init(baseURL: baseURL, highlightsCode: false, equations: [])
     }
 
     // MARK: - Style strings (inline CSS)
@@ -57,7 +75,14 @@ struct HTMLRenderer: MarkupVisitor {
 
     // MARK: - Public entry point
 
-    static func renderDocument(_ markdown: String, baseURL: URL? = nil) -> String {
+    /// - Parameter richRendering: highlight code and typeset `$…$` / `$$…$$`
+    ///   equations. PDF export wants this. The pasteboard does not: Word and
+    ///   Outlook drop `<style>` blocks, and KaTeX markup without its
+    ///   stylesheet pastes as duplicated, jumbled text, so equations stay as
+    ///   their TeX source there.
+    static func renderDocument(_ markdown: String,
+                               baseURL: URL? = nil,
+                               richRendering: Bool = false) -> String {
         // Match the live preview's preprocessing: drop YAML front matter,
         // rewrite Docs/Learn `:::image:::` directives into standard Markdown
         // images, and rewrite GFM-style `[^foo]` footnotes (which swift-
@@ -69,32 +94,104 @@ struct HTMLRenderer: MarkupVisitor {
             ),
             style: .html
         )
-        let document = Document(parsing: cleaned)
-        var renderer = HTMLRenderer(baseURL: baseURL)
-        let body = renderer.visit(document)
-        return Self.wrapInDocument(body: body, bodyCSS: renderer.bodyCSS)
+        guard richRendering else {
+            let document = Document(parsing: cleaned)
+            var renderer = HTMLRenderer(baseURL: baseURL)
+            let body = renderer.visit(document)
+            return Self.wrapInDocument(body: body, bodyCSS: renderer.bodyCSS)
+        }
+        let (rewritten, equations) = Self.extractEquations(from: cleaned)
+        let document = Document(parsing: rewritten)
+        var renderer = HTMLRenderer(baseURL: baseURL,
+                                    highlightsCode: true,
+                                    equations: equations)
+        let body = Self.restoreEquations(equations, in: renderer.visit(document))
+        return Self.wrapInDocument(body: body,
+                                   bodyCSS: renderer.bodyCSS,
+                                   css: Self.richContentCSS(for: body, prefersDark: false))
     }
 
     /// Render just the inner-body HTML (no `<html>`/`<head>` wrapper).
     /// Used by `PreviewViewController` which supplies its own themed CSS.
     /// Inline `style` attributes are stripped so the preview stylesheet
     /// controls all visual presentation (colors, padding, column widths).
+    /// Equations go back in after the strip, because KaTeX positions its
+    /// glyphs with inline styles.
     static func renderBody(_ markdown: String, baseURL: URL? = nil) -> String {
-        let document = Document(parsing: markdown)
-        var renderer = HTMLRenderer(baseURL: baseURL)
+        let (rewritten, equations) = Self.extractEquations(from: markdown)
+        let document = Document(parsing: rewritten)
+        var renderer = HTMLRenderer(baseURL: baseURL,
+                                    highlightsCode: true,
+                                    equations: equations)
         let raw = renderer.visit(document)
-        return raw.replacingOccurrences(
+        let stripped = raw.replacingOccurrences(
             of: #" style="[^"]*""#,
             with: "",
             options: .regularExpression
         )
+        return Self.restoreEquations(equations, in: stripped)
     }
 
-    private static func wrapInDocument(body: String, bodyCSS: String) -> String {
-        """
+    /// Highlight.js, Mermaid and KaTeX stylesheets for a rendered body, included only
+    /// when the body uses them. KaTeX's carries its fonts inline and is
+    /// several hundred KB, too much to add to every page.
+    static func richContentCSS(for body: String, prefersDark: Bool) -> String {
+        var css = ""
+        if body.contains("class=\"hljs") {
+            css += WebAssets.highlightCSS(prefersDark: prefersDark)
+            // Match Highlight.js's `pre code.hljs` specificity so code
+            // blocks keep the app's own padding and background.
+            css += "\npre code.hljs{background:transparent;color:inherit;padding:0;}\n"
+        }
+        if body.contains("language-mermaid") {
+            css += WebAssets.mermaidCSS + "\n"
+        }
+        if body.contains("class=\"katex") {
+            css += WebAssets.katexCSS
+            css += "\n.katex-display{overflow-x:auto;overflow-y:hidden;padding:0.25em 0;}\n"
+        }
+        return css
+    }
+
+    private static func wrapInDocument(body: String, bodyCSS: String, css: String = "") -> String {
+        let style = css.isEmpty ? "" : "<style>\(css)</style>"
+        return """
         <!DOCTYPE html>
-        <html><head><meta charset="utf-8"></head><body style="\(bodyCSS)">\(body)</body></html>
+        <html><head><meta charset="utf-8">\(style)</head><body style="\(bodyCSS)">\(body)</body></html>
         """
+    }
+
+    // MARK: - Equations
+
+    struct Equation {
+        let token: String
+        let source: String
+        let html: String
+    }
+
+    /// Swaps each `$…$` / `$$…$$` equation for a plain-text token before the
+    /// Markdown parser runs, so the KaTeX markup (whose MathML annotation
+    /// repeats the TeX, `_` and `*` included) is never read as Markdown.
+    private static func extractEquations(from markdown: String) -> (String, [Equation]) {
+        let prefix = "QMEquation" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        var equations: [Equation] = []
+        let rewritten = MarkdownMathRewriter.rewrite(markdown) { expression, displayMode in
+            guard let html = WebRenderingEngines.renderEquation(expression, displayMode: displayMode) else {
+                return nil
+            }
+            let token = prefix + String(equations.count) + "End"
+            equations.append(Equation(token: token, source: expression, html: html))
+            return token
+        }
+        return (rewritten, equations)
+    }
+
+    private static func restoreEquations(_ equations: [Equation], in html: String) -> String {
+        var html = html
+        for equation in equations {
+            html = html.replacingOccurrences(of: equation.token, with: equation.html)
+        }
+        return html
     }
 
     // MARK: - Default
@@ -125,7 +222,14 @@ struct HTMLRenderer: MarkupVisitor {
         // actually scroll the preview. swift-markdown doesn't auto-generate
         // these — without them the WKWebView resolves the fragment URL but
         // finds nothing to anchor to, and the click silently no-ops.
-        let slug = Self.slugify(Self.headingPlainText(heading))
+        var plainText = Self.headingPlainText(heading)
+        for equation in equations {
+            plainText = plainText.replacingOccurrences(of: equation.token, with: equation.source)
+        }
+        let baseSlug = Self.slugify(plainText)
+        let occurrence = headingSlugCounts[baseSlug, default: 0]
+        headingSlugCounts[baseSlug] = occurrence + 1
+        let slug = occurrence == 0 ? baseSlug : "\(baseSlug)-\(occurrence)"
         let idAttr = slug.isEmpty ? "" : " id=\"\(Self.escapeAttr(slug))\""
         return "<h\(heading.level)\(idAttr) style=\"\(css)\">\(inner)</h\(heading.level)>\n"
     }
@@ -179,8 +283,19 @@ struct HTMLRenderer: MarkupVisitor {
     }
 
     mutating func visitCodeBlock(_ codeBlock: CodeBlock) -> String {
-        let code = Self.escape(codeBlock.code)
-        return "<pre style=\"\(preCSS)\"><code>\(code)</code></pre>\n"
+        let language = codeBlock.language?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ) ?? ""
+        guard highlightsCode, !language.isEmpty else {
+            let code = Self.escape(codeBlock.code)
+            return "<pre style=\"\(preCSS)\"><code>\(code)</code></pre>\n"
+        }
+        // Unknown languages fall back to plain, escaped text. `mermaid`
+        // is one of them; `MermaidRenderer` swaps those blocks for SVG
+        // diagrams once the page has loaded.
+        let code = WebRenderingEngines.highlight(codeBlock.code, language: language)
+            ?? Self.escape(codeBlock.code)
+        return "<pre style=\"\(preCSS)\"><code class=\"hljs language-\(Self.escapeAttr(language))\">\(code)</code></pre>\n"
     }
 
     mutating func visitHTMLBlock(_ html: HTMLBlock) -> String {
