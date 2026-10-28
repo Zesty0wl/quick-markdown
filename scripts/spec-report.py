@@ -24,6 +24,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from collections import defaultdict
 from html.parser import HTMLParser
 
@@ -46,8 +47,13 @@ DELIBERATE = {
                          {("cmark-extensions", 23)}),
 }
 
-RESULTS = os.path.expanduser(
-    "~/Library/Containers/com.neiljohn.quickmarkdown/Data/tmp/spec-results.json")
+# Where the test writes its results: the app's sandbox container, or the
+# plain temporary directory when the test host isn't sandboxed (CI).
+CANDIDATES = [
+    os.path.expanduser("~/Library/Containers/com.neiljohn.quickmarkdown/Data/tmp/spec-results.json"),
+    os.path.join(tempfile.gettempdir(), "spec-results.json"),
+]
+RESULTS = next((p for p in CANDIDATES if os.path.exists(p)), CANDIDATES[0])
 
 BLOCK = {"article", "header", "aside", "hgroup", "blockquote", "hr", "iframe",
          "body", "li", "map", "button", "object", "canvas", "ol", "caption",

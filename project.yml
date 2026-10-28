@@ -124,6 +124,11 @@ targets:
     deploymentTarget: "15.0"
     sources:
       - path: QuickMarkdownTests
+      # Sample documents the snapshot test renders.
+      - path: test-files/04-extensions.md
+        buildPhase: resources
+      - path: test-files/03-mermaid.md
+        buildPhase: resources
     dependencies:
       - target: QuickMarkdown
     settings:

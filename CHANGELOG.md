@@ -52,6 +52,28 @@ https://semver.org/spec/v2.0.0.html
   list, so a footnote can hold several paragraphs, quotes, lists and code;
   label-based anchors; one back-link per reference.
 
+- **Popular Markdown extensions** beyond GitHub's:
+  - Obsidian-style callouts: custom titles (`> [!tip] Title`), Obsidian's
+    types (info, todo, success, question, failure, danger, bug, example,
+    quote, …) and foldable callouts (`[!tip]-` closed, `[!tip]+` open).
+  - Maths in every common syntax: GitHub's ```` ```math ```` blocks and
+    `` $`…`$ ``, and LaTeX `\(…\)` / `\[…\]` (common in LLM output).
+  - Emoji shortcodes (`:tada:`) from GitHub's own list.
+  - `==highlight==`, `^[inline footnotes]`, abbreviations
+    (`*[HTML]: …`), definition lists (`Term` / `: definition`).
+  - Wiki links: `[[Page]]`, `[[Page|Alias]]`, `[[Page#Heading]]`, and
+    `![[image.png|200]]` embeds.
+  - `[TOC]` / `[[_TOC_]]` table of contents, and custom heading ids
+    (`## Title {#id}`).
+  - YAML front matter is shown as a table at the top of the Preview, as
+    GitHub does, instead of being hidden.
+  - GitHub's `#gh-dark-mode-only` / `#gh-light-mode-only` images, and
+    `<picture>` sources that follow the reading theme.
+  - Syntax highlighting for all 193 Highlight.js languages (was 36),
+    including Dockerfile, PowerShell, TOML, Haskell, Scala, Elixir and
+    LaTeX.
+  See `test-files/04-extensions.md` for a tour.
+
 ### Changed
 
 - **No smart punctuation**, as on GitHub: quotes stay straight and `--`

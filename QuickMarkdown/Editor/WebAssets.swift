@@ -1,6 +1,7 @@
 import Foundation
 
-/// Bundled, offline copies of Highlight.js, KaTeX and Mermaid. Nothing is fetched
+/// Bundled, offline copies of Highlight.js, KaTeX and Mermaid, plus GitHub's
+/// emoji shortcodes. Nothing is fetched
 /// from a CDN. Xcode flattens the `WebAssets` folder into the bundle's
 /// Resources directory, so files are looked up by name alone.
 enum WebAssets {
@@ -36,6 +37,11 @@ enum WebAssets {
 
     static func highlightCSS(prefersDark: Bool) -> String {
         prefersDark ? highlightDarkCSS : highlightLightCSS
+    }
+
+    /// A bundled data file, such as `emoji-shortcodes.json`.
+    static func data(named name: String) -> Data? {
+        data(name)
     }
 
     private static func load(_ relativePath: String) -> String {

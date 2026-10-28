@@ -98,6 +98,8 @@ final class PreviewViewController: NSViewController {
         ])
 
         self.view = root
+        webView.appearance = NSAppearance(
+            named: ReadingPreferences.shared.theme.prefersDark ? .darkAqua : .aqua)
 
         themeObserver = NotificationCenter.default.addObserver(
             forName: ReadingPreferences.didChangeNotification,
@@ -230,13 +232,19 @@ final class PreviewViewController: NSViewController {
     /// Internal so the spec conformance tests render exactly what the
     /// Preview shows.
     static func renderBody(source: String, baseURL: URL?) -> String {
-        let cleaned = MarkdownAttributedRenderer.rewriteFootnotes(
-            in: MarkdownAttributedRenderer.rewriteDocsImageDirectives(
-                in: MarkdownAttributedRenderer.stripFrontMatter(source)
-            ),
-            style: .html
-        )
-        return HTMLRenderer.renderBody(cleaned, baseURL: baseURL)
+        let prepared = MarkdownExtensions.prepare(source)
+        let body = HTMLRenderer.renderBody(prepared.markdown, baseURL: baseURL,
+                                           abbreviations: prepared.abbreviations)
+        return frontMatterTable(prepared.frontMatter) + body
+    }
+
+    /// YAML front matter as a one-row table above the document, as GitHub
+    /// shows it.
+    private static func frontMatterTable(_ pairs: [(key: String, value: String)]) -> String {
+        guard !pairs.isEmpty else { return "" }
+        let head = pairs.map { "<th>\(HTMLRenderer.escape($0.key))</th>" }.joined()
+        let row = pairs.map { "<td>\(HTMLRenderer.escape($0.value))</td>" }.joined()
+        return "<table class=\"qm-front-matter\"><thead><tr>\(head)</tr></thead><tbody><tr>\(row)</tr></tbody></table>\n"
     }
 
     /// Identifies the page shell (theme and font). An in-place update is
@@ -245,8 +253,9 @@ final class PreviewViewController: NSViewController {
         "\(ReadingPreferences.shared.theme)|\(ReadingPreferences.shared.fontFamily)"
     }
 
-    /// Build a complete HTML page with theme-aware CSS.
-    private static func renderHTML(source: String, baseURL: URL?) -> String {
+    /// Build a complete HTML page with theme-aware CSS. Internal so the
+    /// snapshot tests can load exactly what the Preview shows.
+    static func renderHTML(source: String, baseURL: URL?) -> String {
         let theme = ReadingPreferences.shared.theme
         let font = ReadingPreferences.shared.fontFamily
         let body = renderBody(source: source, baseURL: baseURL)
@@ -361,6 +370,30 @@ final class PreviewViewController: NSViewController {
         }
         /* Nested lists in tight items sit close, as on GitHub. */
         li > ul, li > ol { margin-bottom: 0; }
+        /* Callouts that fold (`> [!tip]-`). */
+        details.qm-alert > summary { cursor: pointer; list-style: none; }
+        details.qm-alert > summary::-webkit-details-marker { display: none; }
+        details.qm-alert > summary::after {
+            content: '›'; margin-left: 4px; transition: transform 0.15s;
+        }
+        details.qm-alert[open] > summary::after { transform: rotate(90deg); }
+        details.qm-alert:not([open]) > summary { margin-bottom: 0; }
+        /* ==Highlight== */
+        mark { background: \(theme.prefersDark ? "rgba(255, 214, 10, 0.35)" : "#fff3a3"); color: inherit; border-radius: 2px; padding: 0 1px; }
+        /* Definition lists */
+        dl { margin: 0 0 16px; }
+        dt { font-weight: 600; margin-top: 12px; }
+        dt > p, dd > p { margin: 0 0 4px; }
+        dd { margin: 0 0 8px 24px; }
+        /* Abbreviations */
+        abbr[title] { text-decoration: underline dotted; cursor: help; }
+        /* [TOC] */
+        nav.qm-toc ul { margin: 0; }
+        nav.qm-toc a { text-decoration: none; }
+        /* YAML front matter, shown as a table like GitHub */
+        table.qm-front-matter { font-size: 14px; }
+        /* GitHub's light/dark-only images */
+        \(theme.prefersDark ? ".gh-light-mode-only" : ".gh-dark-mode-only") { display: none !important; }
         /* Footnotes section, as on GitHub. */
         .footnotes {
             border-top: 1px solid \(borderClr);
@@ -597,6 +630,9 @@ final class PreviewViewController: NSViewController {
 
     private func applyTheme() {
         let theme = ReadingPreferences.shared.theme
+        // `prefers-color-scheme` in the page (README `<picture>` sources)
+        // follows the reading theme rather than the system setting.
+        webView.appearance = NSAppearance(named: theme.prefersDark ? .darkAqua : .aqua)
         // WKWebView background is transparent; set the superview bg.
         view.layer?.backgroundColor = theme.background.cgColor
         if !lastRenderedSource.isEmpty {

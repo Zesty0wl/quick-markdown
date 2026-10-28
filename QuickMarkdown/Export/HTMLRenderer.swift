@@ -37,10 +37,25 @@ struct HTMLRenderer: MarkupVisitor {
     /// heading slugs use the TeX source rather than the token.
     private let equations: [Equation]
 
-    private init(baseURL: URL?, richRendering: Bool, equations: [Equation]) {
+    /// Abbreviation definitions (`*[HTML]: …`), wrapped in `<abbr>` in text.
+    private let abbreviations: [String: String]
+
+    /// The document's headings, for `[TOC]` markers.
+    private let tableOfContents: [TOCEntry]
+
+    /// True for the live Preview, false for PDF and the pasteboard, which
+    /// show folded callouts expanded (a printout can't unfold them).
+    private let isPreview: Bool
+
+    private init(baseURL: URL?, richRendering: Bool, equations: [Equation],
+                 abbreviations: [String: String] = [:], document: Document? = nil,
+                 isPreview: Bool = false) {
         self.baseURL = baseURL
         self.richRendering = richRendering
         self.equations = equations
+        self.abbreviations = abbreviations
+        self.isPreview = isPreview
+        self.tableOfContents = document.map { Self.tableOfContents(of: $0, equations: equations) } ?? []
     }
 
     init(baseURL: URL? = nil) {
@@ -88,20 +103,16 @@ struct HTMLRenderer: MarkupVisitor {
     static func renderDocument(_ markdown: String,
                                baseURL: URL? = nil,
                                richRendering: Bool = false) -> String {
-        // Match the live preview's preprocessing: drop YAML front matter,
-        // rewrite Docs/Learn `:::image:::` directives into standard Markdown
-        // images, and rewrite GFM-style `[^foo]` footnotes (which swift-
-        // markdown doesn't parse) into inline HTML refs + a footnotes
-        // section, so the rest of the pipeline picks them up.
-        let cleaned = MarkdownAttributedRenderer.rewriteFootnotes(
-            in: MarkdownAttributedRenderer.rewriteDocsImageDirectives(
-                in: MarkdownAttributedRenderer.stripFrontMatter(markdown)
-            ),
-            style: .html
-        )
+        // Match the live preview's preprocessing (front matter, Docs image
+        // directives, wiki links, highlights, definition lists, footnotes;
+        // see `MarkdownExtensions`), so the rest of the pipeline picks
+        // them up. Front matter isn't shown in exports.
+        let prepared = MarkdownExtensions.prepare(markdown)
+        let cleaned = prepared.markdown
         guard richRendering else {
             let document = Document(parsing: cleaned, options: Self.parseOptions)
-            var renderer = HTMLRenderer(baseURL: baseURL)
+            var renderer = HTMLRenderer(baseURL: baseURL, richRendering: false, equations: [],
+                                        abbreviations: prepared.abbreviations, document: document)
             let body = renderer.visit(document)
             return Self.wrapInDocument(body: body, bodyCSS: renderer.bodyCSS)
         }
@@ -109,7 +120,9 @@ struct HTMLRenderer: MarkupVisitor {
         let document = Document(parsing: rewritten, options: Self.parseOptions)
         var renderer = HTMLRenderer(baseURL: baseURL,
                                     richRendering: true,
-                                    equations: equations)
+                                    equations: equations,
+                                    abbreviations: prepared.abbreviations,
+                                    document: document)
         let body = Self.restoreEquations(equations, in: renderer.visit(document))
         return Self.wrapInDocument(body: body,
                                    bodyCSS: renderer.bodyCSS,
@@ -122,12 +135,16 @@ struct HTMLRenderer: MarkupVisitor {
     /// controls all visual presentation (colors, padding, column widths).
     /// Equations go back in after the strip, because KaTeX positions its
     /// glyphs with inline styles.
-    static func renderBody(_ markdown: String, baseURL: URL? = nil) -> String {
+    static func renderBody(_ markdown: String, baseURL: URL? = nil,
+                           abbreviations: [String: String] = [:]) -> String {
         let (rewritten, equations) = Self.extractEquations(from: markdown)
         let document = Document(parsing: rewritten, options: Self.parseOptions)
         var renderer = HTMLRenderer(baseURL: baseURL,
                                     richRendering: true,
-                                    equations: equations)
+                                    equations: equations,
+                                    abbreviations: abbreviations,
+                                    document: document,
+                                    isPreview: true)
         let raw = renderer.visit(document)
         let stripped = raw.replacingOccurrences(
             of: #" style="[^"]*""#,
@@ -227,16 +244,113 @@ struct HTMLRenderer: MarkupVisitor {
         // actually scroll the preview. swift-markdown doesn't auto-generate
         // these — without them the WKWebView resolves the fragment URL but
         // finds nothing to anchor to, and the click silently no-ops.
-        var plainText = Self.plainText(heading)
-        for equation in equations {
-            plainText = plainText.replacingOccurrences(of: equation.token, with: equation.source)
+        let identity = Self.headingIdentity(heading, equations: equations)
+        let slug: String
+        var content = inner
+        if let customID = identity.customID {
+            // `## Title {#custom-id}`: use the id and drop the attribute
+            // block from the visible text.
+            slug = customID
+            content = content.replacingOccurrences(of: Self.attributeBlockPattern, with: "",
+                                                   options: .regularExpression)
+        } else {
+            let occurrence = headingSlugCounts[identity.slug, default: 0]
+            headingSlugCounts[identity.slug] = occurrence + 1
+            slug = occurrence == 0 ? identity.slug : "\(identity.slug)-\(occurrence)"
         }
-        let baseSlug = Self.slugify(plainText)
-        let occurrence = headingSlugCounts[baseSlug, default: 0]
-        headingSlugCounts[baseSlug] = occurrence + 1
-        let slug = occurrence == 0 ? baseSlug : "\(baseSlug)-\(occurrence)"
         let idAttr = slug.isEmpty ? "" : " id=\"\(Self.escapeAttr(slug))\""
-        return "<h\(heading.level)\(idAttr) style=\"\(css)\">\(inner)</h\(heading.level)>\n"
+        return "<h\(heading.level)\(idAttr) style=\"\(css)\">\(content)</h\(heading.level)>\n"
+    }
+
+    // MARK: - Heading ids and table of contents
+
+    /// A trailing Pandoc / PHP Markdown Extra attribute block with an id:
+    /// `{#id}` or `{#id .class key=value}`.
+    static let attributeBlockPattern = #"\s*\{[^{}]*#[A-Za-z][\w:.-]*[^{}]*\}\s*$"#
+
+    /// A heading's visible text, its base slug, and any custom id.
+    private static func headingIdentity(_ heading: Heading,
+                                        equations: [Equation]) -> (text: String, slug: String, customID: String?) {
+        var text = plainText(heading)
+        for equation in equations {
+            text = text.replacingOccurrences(of: equation.token, with: equation.source)
+        }
+        if let block = text.range(of: attributeBlockPattern, options: .regularExpression),
+           let id = text[block].range(of: #"#[A-Za-z][\w:.-]*"#, options: .regularExpression) {
+            let customID = String(text[block][id].dropFirst())
+            text.removeSubrange(block)
+            return (text, slugify(text), customID)
+        }
+        return (text, slugify(text), nil)
+    }
+
+    struct TOCEntry {
+        let level: Int
+        let text: String
+        let slug: String
+    }
+
+    /// Every heading in document order with the id `visitHeading` gives it.
+    private static func tableOfContents(of document: Document, equations: [Equation]) -> [TOCEntry] {
+        var entries: [TOCEntry] = []
+        var counts: [String: Int] = [:]
+        func walk(_ markup: any Markup) {
+            if let heading = markup as? Heading {
+                let identity = headingIdentity(heading, equations: equations)
+                let slug: String
+                if let customID = identity.customID {
+                    slug = customID
+                } else {
+                    let occurrence = counts[identity.slug, default: 0]
+                    counts[identity.slug] = occurrence + 1
+                    slug = occurrence == 0 ? identity.slug : "\(identity.slug)-\(occurrence)"
+                }
+                entries.append(TOCEntry(level: heading.level, text: identity.text, slug: slug))
+                return
+            }
+            for child in markup.children { walk(child) }
+        }
+        walk(document)
+        return entries
+    }
+
+    /// A paragraph that is just `[TOC]`, `[[TOC]]`, `[[_TOC_]]` or `${toc}`
+    /// (Python-Markdown, Typora, GitLab, Azure DevOps, markdown-it).
+    private static func isTOCMarker(_ paragraph: Paragraph) -> Bool {
+        let text = plainText(paragraph).trimmingCharacters(in: .whitespaces).lowercased()
+        return ["[toc]", "[[toc]]", "${toc}"].contains(text)
+    }
+
+    /// Nested list of links to the document's headings.
+    private func renderTableOfContents() -> String {
+        guard !tableOfContents.isEmpty else { return "" }
+        // Depth = number of open ancestors with a lower level, so skipped
+        // levels (h1 → h3) nest one step, not two.
+        var levels: [Int] = []
+        var depths: [Int] = []
+        for entry in tableOfContents {
+            while let last = levels.last, last >= entry.level { levels.removeLast() }
+            depths.append(levels.count)
+            levels.append(entry.level)
+        }
+        var out = "<nav class=\"qm-toc\" style=\"margin:0 0 16px 0;\"><ul style=\"\(ulCSS)\">"
+        var current = 0
+        for (index, entry) in tableOfContents.enumerated() {
+            let depth = depths[index]
+            if index > 0 {
+                if depth > current {
+                    out += "<ul style=\"\(ulCSS)\">"
+                } else {
+                    out += "</li>"
+                    for _ in depth..<current { out += "</ul></li>" }
+                }
+            }
+            current = depth
+            out += "<li style=\"\(liCSS)\"><a href=\"#\(Self.escapeAttr(Self.normalizeURL(entry.slug)))\" style=\"color:#0066cc;text-decoration:none;\">\(Self.escape(entry.text))</a>"
+        }
+        out += "</li>"
+        for _ in 0..<current { out += "</ul></li>" }
+        return out + "</ul></nav>\n"
     }
 
     /// Collect the plain-text content by concatenating every `Text` and
@@ -285,6 +399,9 @@ struct HTMLRenderer: MarkupVisitor {
     }
 
     mutating func visitParagraph(_ paragraph: Paragraph) -> String {
+        if Self.isTOCMarker(paragraph) {
+            return renderTableOfContents()
+        }
         let inner = visitChildren(paragraph)
         // As on GitHub, paragraphs directly inside a tight list's items
         // render bare, so the list isn't spaced out like a loose one.
@@ -337,8 +454,8 @@ struct HTMLRenderer: MarkupVisitor {
     }
 
     mutating func visitBlockQuote(_ blockQuote: BlockQuote) -> String {
-        if let alert = Self.alertKind(of: blockQuote) {
-            return renderAlert(blockQuote, kind: alert)
+        if let callout = callout(of: blockQuote) {
+            return renderCallout(callout, blockQuote)
         }
         let inner = visitChildren(blockQuote)
         return "<blockquote style=\"\(blockquoteCSS)\">\(inner)</blockquote>\n"
@@ -346,14 +463,14 @@ struct HTMLRenderer: MarkupVisitor {
 
     // MARK: - Alerts
 
-    /// GitHub-style alerts: a block quote whose first line is exactly
-    /// `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]` or `[!CAUTION]`
-    /// (any case). Rendered like GitHub's: a coloured bar and a titled
-    /// header with the matching Octicon.
+    /// GitHub-style alerts and Obsidian-style callouts: a block quote whose
+    /// first line starts with `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`,
+    /// `[!WARNING]`, `[!CAUTION]` or one of Obsidian's types (any case).
+    /// Rendered like GitHub's: a coloured bar and a titled header with the
+    /// matching Octicon. Text after the marker is a custom title, and
+    /// `[!type]-` / `[!type]+` make it foldable (closed / open).
     enum AlertKind: String, CaseIterable {
-        case note, tip, important, warning, caution
-
-        var title: String { rawValue.prefix(1).uppercased() + rawValue.dropFirst() }
+        case note, tip, important, warning, caution, quote
 
         /// GitHub's light-theme colour, used inline for export.
         var color: String {
@@ -363,6 +480,7 @@ struct HTMLRenderer: MarkupVisitor {
             case .important: "#8250df"
             case .warning: "#9a6700"
             case .caution: "#d1242f"
+            case .quote: "#59636e"
             }
         }
 
@@ -374,10 +492,11 @@ struct HTMLRenderer: MarkupVisitor {
             case .important: "#ab7df8"
             case .warning: "#d29922"
             case .caution: "#f85149"
+            case .quote: "#9198a1"
             }
         }
 
-        /// Octicon path (16×16): info, light-bulb, report, alert, stop.
+        /// Octicon path (16×16): info, light-bulb, report, alert, stop, quote.
         var iconPath: String {
             switch self {
             case .note:
@@ -388,47 +507,97 @@ struct HTMLRenderer: MarkupVisitor {
                 "M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"
             case .warning:
                 "M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"
+            case .quote:
+                "M1.75 2.5h10.5a.75.75 0 0 1 0 1.5H1.75a.75.75 0 0 1 0-1.5Zm4 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5ZM2.5 7.75v6a.75.75 0 0 1-1.5 0v-6a.75.75 0 0 1 1.5 0Z"
             case .caution:
                 "M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6a.749.749 0 0 1-.22.53l-4.25 4.25A.749.749 0 0 1 11 16H5a.749.749 0 0 1-.53-.22L.22 11.53A.749.749 0 0 1 0 11V5c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"
             }
         }
     }
 
-    /// The alert type when the quote's first line is just the marker.
-    private static func alertKind(of blockQuote: BlockQuote) -> AlertKind? {
-        guard let paragraph = blockQuote.child(at: 0) as? Paragraph else { return nil }
-        var marker = ""
-        for inline in paragraph.inlineChildren {
-            if inline is SoftBreak || inline is LineBreak { break }
-            guard let text = inline as? Markdown.Text else { return nil }
-            marker += text.string
-        }
-        let trimmed = marker.trimmingCharacters(in: .whitespaces)
-        guard trimmed.hasPrefix("[!"), trimmed.hasSuffix("]") else { return nil }
-        return AlertKind(rawValue: trimmed.dropFirst(2).dropLast().lowercased())
+    /// Obsidian's callout types and aliases, mapped onto the GitHub styles.
+    private static let calloutKinds: [String: AlertKind] = [
+        "note": .note, "info": .note, "todo": .note, "abstract": .note,
+        "summary": .note, "tldr": .note,
+        "tip": .tip, "hint": .tip, "success": .tip, "check": .tip, "done": .tip,
+        "important": .important, "question": .important, "help": .important,
+        "faq": .important, "example": .important,
+        "warning": .warning, "attention": .warning,
+        "caution": .caution, "danger": .caution, "error": .caution,
+        "failure": .caution, "fail": .caution, "missing": .caution, "bug": .caution,
+        "quote": .quote, "cite": .quote,
+    ]
+
+    private struct Callout {
+        let kind: AlertKind
+        let titleHTML: String
+        /// `-` (starts closed) or `+` (starts open) for foldable callouts.
+        let fold: Character?
+        /// The first paragraph's inlines after the marker line.
+        let bodyStart: [any Markup]
+        let firstParagraph: Paragraph
     }
 
-    private mutating func renderAlert(_ blockQuote: BlockQuote, kind: AlertKind) -> String {
+    /// The callout a block quote starts with, if any.
+    private mutating func callout(of blockQuote: BlockQuote) -> Callout? {
+        guard let paragraph = blockQuote.child(at: 0) as? Paragraph else { return nil }
+        let inlines = Array(paragraph.children)
+        let lineEnd = inlines.firstIndex { $0 is SoftBreak || $0 is LineBreak } ?? inlines.count
+        // cmark may split `[!NOTE]` across text nodes, so join the leading ones.
+        var lead = ""
+        var k = 0
+        while k < lineEnd, let text = inlines[k] as? Markdown.Text {
+            lead += text.string
+            k += 1
+        }
+        guard let marker = lead.range(of: #"^\s*\[![A-Za-z]+\][+-]?"#, options: .regularExpression) else {
+            return nil
+        }
+        let markerText = lead[marker].trimmingCharacters(in: .whitespaces)
+        let type = markerText.dropFirst(2).prefix { $0 != "]" }.lowercased()
+        guard let kind = Self.calloutKinds[type] else { return nil }
+        let fold = markerText.last.flatMap { "+-".contains($0) ? $0 : nil }
+        var title = renderText(String(lead[marker.upperBound...]).trimmingCharacters(in: .whitespaces),
+                               in: paragraph)
+        title += renderSequence(inlines[k..<lineEnd], in: paragraph)
+        title = title.trimmingCharacters(in: .whitespaces)
+        if title.isEmpty {
+            title = Self.escape(type.prefix(1).uppercased() + type.dropFirst())
+        }
+        let bodyStart = lineEnd < inlines.count ? Array(inlines[(lineEnd + 1)...]) : []
+        return Callout(kind: kind, titleHTML: title, fold: fold, bodyStart: bodyStart,
+                       firstParagraph: paragraph)
+    }
+
+    private mutating func renderCallout(_ callout: Callout, _ blockQuote: BlockQuote) -> String {
+        let kind = callout.kind
         let icon = richRendering
             ? "<svg class=\"qm-alert-icon\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" aria-hidden=\"true\"><path fill=\"currentColor\" d=\"\(kind.iconPath)\"></path></svg>"
             : ""
-        var out = "<div class=\"qm-alert qm-alert-\(kind.rawValue)\" style=\"border-left:4px solid \(kind.color);margin:0 0 16px 0;padding:0 0 0 16px;\">"
-        out += "<p class=\"qm-alert-title\" style=\"color:\(kind.color);font-weight:600;margin:0 0 8px 0;\">\(icon)\(kind.title)</p>"
-        for (index, child) in blockQuote.children.enumerated() {
-            guard index == 0, let paragraph = child as? Paragraph else {
-                out += visit(child)
-                continue
-            }
-            // Drop the marker line; keep the rest of the first paragraph.
-            let inlines = Array(paragraph.children)
-            let rest = inlines.firstIndex(where: { $0 is SoftBreak || $0 is LineBreak })
-                .map { renderSequence(inlines[($0 + 1)...], in: paragraph) } ?? ""
-            if !rest.isEmpty {
-                out += "<p style=\"\(pCSS)\">\(rest)</p>\n"
-            }
+        let boxStyle = "border-left:4px solid \(kind.color);margin:0 0 16px 0;padding:0 0 0 16px;"
+        let titleStyle = "color:\(kind.color);font-weight:600;margin:0 0 8px 0;"
+        let classes = "qm-alert qm-alert-\(kind.rawValue)"
+        var out: String
+        let closing: String
+        if let fold = callout.fold {
+            // Only the live Preview starts a `-` callout closed.
+            let open = isPreview && fold == "-" ? "" : " open"
+            out = "<details class=\"\(classes)\"\(open) style=\"\(boxStyle)\"><summary class=\"qm-alert-title\" style=\"\(titleStyle)\">\(icon)\(callout.titleHTML)</summary>"
+            closing = "</details>\n"
+        } else {
+            out = "<div class=\"\(classes)\" style=\"\(boxStyle)\"><p class=\"qm-alert-title\" style=\"\(titleStyle)\">\(icon)\(callout.titleHTML)</p>"
+            closing = "</div>\n"
         }
-        return out + "</div>\n"
+        let rest = renderSequence(callout.bodyStart, in: callout.firstParagraph)
+        if !rest.isEmpty {
+            out += "<p style=\"\(pCSS)\">\(rest)</p>\n"
+        }
+        for child in blockQuote.children.dropFirst() {
+            out += visit(child)
+        }
+        return out + closing
     }
+
 
     mutating func visitCodeBlock(_ codeBlock: CodeBlock) -> String {
         // The language is the info string's first word (` ```ruby startline=3 `).
@@ -570,10 +739,46 @@ struct HTMLRenderer: MarkupVisitor {
     private func renderText(_ string: String, in container: (any Markup)?) -> String {
         var ancestor = container
         while let node = ancestor {
-            if node is Link || node is Markdown.Image { return Self.escape(string) }
+            if node is Link || node is Markdown.Image { return decorate(Self.escape(string)) }
             ancestor = node.parent
         }
-        return Self.autolinked(string)
+        return Self.autolinked(string, decorate: decorate)
+    }
+
+    /// Applied to escaped plain text (never inside tags or link targets):
+    /// abbreviations become `<abbr>`, `:shortcodes:` become emoji.
+    private func decorate(_ html: String) -> String {
+        Self.replacingEmoji(in: Self.wrappingAbbreviations(html, abbreviations))
+    }
+
+    // MARK: - Emoji and abbreviations
+
+    /// GitHub's emoji shortcodes (gemoji), loaded on first use.
+    private static let emojiShortcodes: [String: String] = {
+        guard let data = WebAssets.data(named: "emoji-shortcodes.json"),
+              let map = try? JSONDecoder().decode([String: String].self, from: data) else {
+            return [:]
+        }
+        return map
+    }()
+
+    static func replacingEmoji(in html: String) -> String {
+        guard html.contains(":") else { return html }
+        return html.replacingMatches(of: #":([a-z0-9_+\-]+):"#) { groups in
+            emojiShortcodes[groups[1]]
+        }
+    }
+
+    static func wrappingAbbreviations(_ html: String, _ abbreviations: [String: String]) -> String {
+        guard !abbreviations.isEmpty else { return html }
+        let terms = abbreviations.keys.sorted { $0.count > $1.count }
+            .map { NSRegularExpression.escapedPattern(for: escape($0)) }
+        let pattern = "(?<![\\p{L}\\p{N}_])(" + terms.joined(separator: "|") + ")(?![\\p{L}\\p{N}_])"
+        var titles: [String: String] = [:]
+        for (term, title) in abbreviations { titles[escape(term)] = title }
+        return html.replacingMatches(of: pattern) { groups in
+            titles[groups[1]].map { "<abbr title=\"\(escapeAttr($0))\">\(groups[1])</abbr>" }
+        }
     }
 
     mutating func visitSoftBreak(_ softBreak: SoftBreak) -> String { " " }
@@ -626,10 +831,21 @@ struct HTMLRenderer: MarkupVisitor {
         // `vertical-align:middle` removes the baseline gap that inline-level
         // images otherwise leave below themselves. Standalone images still
         // sit on their own line because the surrounding `<p>` is block.
-        return "<img src=\"\(resolvedSrc)\" alt=\"\(alt)\"\(title) style=\"max-width:100%;height:auto;display:inline-block;vertical-align:middle;\">"
+        // GitHub's `#gh-dark-mode-only` / `#gh-light-mode-only` images show
+        // only with the matching theme (exports are light).
+        let mode = Self.colorModeClass(forSource: rawSrc)
+        let classAttr = mode.map { " class=\"\($0)\"" } ?? ""
+        let hidden = mode == "gh-dark-mode-only" ? "display:none;" : ""
+        return "<img src=\"\(resolvedSrc)\" alt=\"\(alt)\"\(title)\(classAttr) style=\"max-width:100%;height:auto;display:inline-block;vertical-align:middle;\(hidden)\">"
     }
 
     // MARK: - Image inlining
+
+    static func colorModeClass(forSource source: String) -> String? {
+        if source.hasSuffix("#gh-dark-mode-only") { return "gh-dark-mode-only" }
+        if source.hasSuffix("#gh-light-mode-only") { return "gh-light-mode-only" }
+        return nil
+    }
 
     /// Find every `<img src="…">` (or single-quoted variant) in `raw` and
     /// rewrite the `src` to a `data:` URL when it resolves to a readable
@@ -638,7 +854,7 @@ struct HTMLRenderer: MarkupVisitor {
     /// sandbox-friendly inlining treatment as Markdown `![]()` images.
     /// Remote sources, data: URLs, and unresolved paths are left alone.
     private func rewriteImageSources(in raw: String) -> String {
-        let pattern = #"(<img\b[^>]*?\bsrc\s*=\s*)(?:"([^"]+)"|'([^']+)')([^>]*>)"#
+        let pattern = #"(<(?:img\b[^>]*?\bsrc|source\b[^>]*?\bsrcset)\s*=\s*)(?:"([^"]+)"|'([^']+)')([^>]*>)"#
         guard let regex = try? NSRegularExpression(
             pattern: pattern,
             options: [.caseInsensitive, .dotMatchesLineSeparators]
@@ -671,9 +887,17 @@ struct HTMLRenderer: MarkupVisitor {
                 src = ""
             }
             let suffix = ns.substring(with: m.range(at: 4))
-            let newSrc = inlineDataURL(forSource: src) ?? src
+            // A srcset with several candidates (`a.png 1x, b.png 2x`) is
+            // left as written.
+            let isSingleURL = !src.contains(",") && !src.trimmingCharacters(in: .whitespaces).contains(" ")
+            let newSrc = isSingleURL ? (inlineDataURL(forSource: src) ?? src) : src
+            var opening = prefix
+            if let mode = Self.colorModeClass(forSource: src), !prefix.contains("class=") {
+                opening = opening.replacingOccurrences(of: "<img", with: "<img class=\"\(mode)\"",
+                                                       options: [.anchored, .caseInsensitive])
+            }
             // Always re-emit with double quotes for consistency.
-            out += "\(prefix)\"\(Self.escapeAttr(newSrc))\"\(suffix)"
+            out += "\(opening)\"\(Self.escapeAttr(newSrc))\"\(suffix)"
             cursor = m.range.location + m.range.length
         }
         out += ns.substring(from: cursor)
@@ -819,18 +1043,18 @@ struct HTMLRenderer: MarkupVisitor {
     /// `mailto:` / `xmpp:` addresses in plain text become links. Trailing
     /// punctuation, unbalanced closing parentheses and trailing entity-like
     /// `&name;` text stay outside the link, as on GitHub.
-    static func autolinked(_ text: String) -> String {
+    static func autolinked(_ text: String, decorate: (String) -> String = { $0 }) -> String {
         let chars = Array(text)
         guard chars.contains(where: { $0 == "." || $0 == ":" }),
               chars.contains(where: { $0 == "w" || $0 == ":" || $0 == "@" }) else {
-            return escape(text)
+            return decorate(escape(text))
         }
         var out = ""
         var plainStart = 0
         var i = 0
         while i < chars.count {
             if let match = autolinkMatch(chars, at: i) {
-                out += escape(String(chars[plainStart..<i]))
+                out += decorate(escape(String(chars[plainStart..<i])))
                 let label = String(chars[i..<(i + match.length)])
                 let href = escapeAttr(normalizeURL(match.prefix + label))
                 out += "<a href=\"\(href)\" style=\"color:#0066cc;text-decoration:underline;\">\(escape(label))</a>"
@@ -840,7 +1064,7 @@ struct HTMLRenderer: MarkupVisitor {
                 i += 1
             }
         }
-        out += escape(String(chars[plainStart...]))
+        out += decorate(escape(String(chars[plainStart...])))
         return out
     }
 
@@ -950,7 +1174,7 @@ struct HTMLRenderer: MarkupVisitor {
         return end - start
     }
 
-    private static func escape(_ s: String) -> String {
+    static func escape(_ s: String) -> String {
         var out = ""
         out.reserveCapacity(s.count)
         for ch in s {
@@ -965,7 +1189,7 @@ struct HTMLRenderer: MarkupVisitor {
         return out
     }
 
-    private static func escapeAttr(_ s: String) -> String {
+    static func escapeAttr(_ s: String) -> String {
         escape(s)
     }
 }

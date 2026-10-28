@@ -127,34 +127,63 @@ enum WebRenderingEngines {
 enum MarkdownMathRewriter {
     typealias Renderer = (_ expression: String, _ displayMode: Bool) -> String?
 
+    /// Replaces equations with `renderer`'s output (or placeholder tokens):
+    /// `$…$` and `\(…\)` inline; `$$…$$`, `\[…\]` and ```` ```math ````
+    /// fences as display blocks; GitHub's `` $`…`$ `` inline form. Code
+    /// spans and fenced code are left alone, and block output keeps the
+    /// opener's indentation so equations inside list items stay there.
     static func rewrite(_ source: String,
                         renderer: Renderer = WebRenderingEngines.renderEquation) -> String {
         let lines = source.components(separatedBy: "\n")
         var output: [String] = []
         var fenceCharacter: Character?
         var fenceLength = 0
-        var blockOriginal: [String]?
-        var blockExpression: [String] = []
+        // An open display block (`$$` or `\[` on its own line): its closer,
+        // the original lines (restored if it never closes), the expression
+        // so far and the opener's indentation.
+        var block: (closer: String, original: [String], expression: [String], indent: String)?
+        // An open ```math fence.
+        var mathFence: (character: Character, length: Int, original: [String],
+                        expression: [String], indent: String)?
 
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let indent = String(line.prefix { $0 == " " || $0 == "\t" })
 
-            if blockOriginal != nil {
-                if trimmed.hasSuffix("$$") {
-                    let closing = String(trimmed.dropLast(2))
-                    if !closing.isEmpty { blockExpression.append(closing) }
-                    let expression = blockExpression.joined(separator: "\n")
+            if var open = mathFence {
+                if let marker = fenceMarker(in: trimmed), marker.character == open.character,
+                   marker.length >= open.length,
+                   trimmed.dropFirst(marker.length).allSatisfy(\.isWhitespace) {
+                    let expression = open.expression.joined(separator: "\n")
                     if let rendered = renderer(expression, true) {
-                        output.append(rendered)
+                        output.append(open.indent + rendered)
                     } else {
-                        output.append(contentsOf: blockOriginal ?? [])
-                        output.append(line)
+                        output.append(contentsOf: open.original + [line])
                     }
-                    blockOriginal = nil
-                    blockExpression = []
+                    mathFence = nil
                 } else {
-                    blockOriginal?.append(line)
-                    blockExpression.append(line)
+                    open.original.append(line)
+                    open.expression.append(String(line.dropFirst(min(open.indent.count, indent.count))))
+                    mathFence = open
+                }
+                continue
+            }
+
+            if var open = block {
+                if trimmed.hasSuffix(open.closer) {
+                    let closing = String(trimmed.dropLast(open.closer.count))
+                    if !closing.isEmpty { open.expression.append(closing) }
+                    let expression = open.expression.joined(separator: "\n")
+                    if let rendered = renderer(expression, true) {
+                        output.append(open.indent + rendered)
+                    } else {
+                        output.append(contentsOf: open.original + [line])
+                    }
+                    block = nil
+                } else {
+                    open.original.append(line)
+                    open.expression.append(line)
+                    block = open
                 }
                 continue
             }
@@ -166,6 +195,12 @@ enum MarkdownMathRewriter {
                         fenceLength = 0
                     }
                 } else {
+                    let info = trimmed.dropFirst(marker.length)
+                        .split(whereSeparator: \.isWhitespace).first?.lowercased()
+                    if info == "math" {
+                        mathFence = (marker.character, marker.length, [line], [], indent)
+                        continue
+                    }
                     fenceCharacter = marker.character
                     fenceLength = marker.length
                 }
@@ -182,21 +217,40 @@ enum MarkdownMathRewriter {
                 let afterOpening = String(trimmed.dropFirst(2))
                 if afterOpening.hasSuffix("$$"), afterOpening.count >= 2 {
                     let expression = String(afterOpening.dropLast(2))
-                    output.append(renderer(expression, true) ?? line)
+                    output.append(renderer(expression, true).map { indent + $0 } ?? line)
                 } else {
-                    blockOriginal = [line]
-                    if !afterOpening.isEmpty { blockExpression = [afterOpening] }
+                    block = ("$$", [line], afterOpening.isEmpty ? [] : [afterOpening], indent)
                 }
+                continue
+            }
+            // `\[` alone on its line opens a multi-line display block (a
+            // one-line `\[ … \]` is handled with the inline forms below).
+            if trimmed == "\\[" {
+                block = ("\\]", [line], [], indent)
                 continue
             }
 
             output.append(rewriteInlineMath(in: line, renderer: renderer))
         }
 
-        if let blockOriginal {
-            output.append(contentsOf: blockOriginal)
+        if let block {
+            output.append(contentsOf: block.original)
+        }
+        if let mathFence {
+            output.append(contentsOf: mathFence.original)
         }
         return output.joined(separator: "\n")
+    }
+
+    /// `\(…\)` and `\[…\]` only count as maths when the content looks like
+    /// it: it has a letter or digit, and either a maths character (a TeX
+    /// command, operator, brace or digit) or no spaces (`\(x\)`). So
+    /// CommonMark escapes like `\[\\\]` and `\[citation needed\]` stay text.
+    private static func isMathLike(_ expression: String) -> Bool {
+        guard expression.contains(where: { $0.isLetter || $0.isNumber }) else { return false }
+        let trimmed = expression.trimmingCharacters(in: .whitespaces)
+        return trimmed.contains(where: { "\\^_=+-*/<>|{}()0123456789".contains($0) })
+            || !trimmed.contains(where: \.isWhitespace)
     }
 
     private static func rewriteInlineMath(in line: String,
@@ -214,6 +268,46 @@ enum MarkdownMathRewriter {
                 output += line[cursor..<end]
                 cursor = end
                 continue
+            }
+
+            // GitHub's inline form: $`…`$.
+            if line[cursor] == "$", codeDelimiterLength == 0, !isEscaped(line, at: cursor),
+               line.index(after: cursor) < line.endIndex, line[line.index(after: cursor)] == "`" {
+                let expressionStart = line.index(cursor, offsetBy: 2, limitedBy: line.endIndex) ?? line.endIndex
+                if let close = line.range(of: "`$", range: expressionStart..<line.endIndex),
+                   close.lowerBound > expressionStart,
+                   let rendered = renderer(String(line[expressionStart..<close.lowerBound]), false) {
+                    output += rendered
+                    cursor = close.upperBound
+                    continue
+                }
+            }
+
+            // LaTeX delimiters: \( … \) inline, \[ … \] display. Only where
+            // maths starts in prose (after a space, quote or emphasis
+            // marker, or at the start), so `[link](\(foo\))` stays a URL.
+            let previous: Character? = cursor > line.startIndex ? line[line.index(before: cursor)] : nil
+            let startsProse = previous.map { $0.isWhitespace || "\"'*_~>".contains($0) } ?? true
+            if line[cursor] == "\\", startsProse, codeDelimiterLength == 0, !isEscaped(line, at: cursor),
+               line.index(after: cursor) < line.endIndex,
+               "([".contains(line[line.index(after: cursor)]) {
+                let isDisplay = line[line.index(after: cursor)] == "["
+                let closer = isDisplay ? "\\]" : "\\)"
+                let expressionStart = line.index(cursor, offsetBy: 2)
+                var search = expressionStart
+                while let close = line.range(of: closer, range: search..<line.endIndex) {
+                    if isEscaped(line, at: close.lowerBound) {
+                        search = close.upperBound
+                        continue
+                    }
+                    let expression = String(line[expressionStart..<close.lowerBound])
+                    if isMathLike(expression), let rendered = renderer(expression, isDisplay) {
+                        output += rendered
+                        cursor = close.upperBound
+                    }
+                    break
+                }
+                if cursor > line.index(before: expressionStart) { continue }
             }
 
             if line[cursor] == "$", codeDelimiterLength == 0,

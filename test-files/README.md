@@ -13,6 +13,7 @@ should see things that look approximately as nice as they read.
 | :--- | :--- | :--- |
 | [`01-welcome.md`](01-welcome.md) | The pitch, the PNG logo, the generated SVG, a handful of formatting flourishes. Start here. | Whimsical |
 | [`02-the-kitchen-sink.md`](02-the-kitchen-sink.md) | Every block type, every inline style, lists, tables, code fences, footnotes, task lists, blockquotes, YAML front matter, HTML pass-through, weird Unicode, the lot. | Encyclopaedic |
+| [`04-extensions.md`](04-extensions.md) | Callouts, maths in every syntax, emoji, highlights, inline footnotes, abbreviations, definition lists, wiki links, `[TOC]`, front matter, custom heading ids, many-language highlighting, light/dark images. | Tour |
 | [`03-mermaid.md`](03-mermaid.md) | Flowchart, sequence diagram, and a state diagram inside a collapsed HTML section. | Diagrams |
 | [`media/quick-markdown.png`](media/quick-markdown.png) | The app icon (1024×1024 PNG). Used inline in `01-welcome.md`. | Pixels |
 | [`media/qm-logo.svg`](media/qm-logo.svg) | A hand-rolled SVG banner that should also render inline (via the in-app SVG rasteriser). | Vectors |

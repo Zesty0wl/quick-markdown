@@ -48,3 +48,14 @@ jobs:
             ONLY_ACTIVE_ARCH=NO \
             ARCHS='arm64 x86_64' \
             build
+
+      - name: Test (unit tests and CommonMark / GFM spec conformance)
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project QuickMarkdown.xcodeproj \
+            -scheme QuickMarkdown \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            test
+          python3 scripts/spec-report.py --check
