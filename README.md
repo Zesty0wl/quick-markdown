@@ -46,6 +46,18 @@ It's free, it's open source, it's MIT licensed. Fill your boots.
 
 ---
 
+## What it renders
+
+Everything GitHub renders, and the extras people actually use, all offline. Each screenshot below was taken from the matching file in [`media/showcase`](media/showcase), so open one and see for yourself.
+
+| Mermaid diagrams | Code and maths |
+|:-:|:-:|
+| ![Flowchart, sequence diagram and pie chart rendered from Mermaid blocks, on the Dark theme](media/showcase/diagrams.png) | ![Syntax-highlighted Swift, Python, Rust, TypeScript, diff and shell, with KaTeX equations, on the Light theme](media/showcase/code-and-maths.png) |
+| **Callouts, tasks and footnotes** | **Tables, emoji and the rest** |
+| ![GitHub alerts and Obsidian-style callouts, task lists and footnotes, on the Sepia theme](media/showcase/callouts.png) | ![Front matter table, table of contents, aligned table, emoji, highlights, keyboard keys and definition lists, on the Night Sky theme](media/showcase/extras.png) |
+
+---
+
 ## The gallery
 
 | Light | Dark | Sepia |

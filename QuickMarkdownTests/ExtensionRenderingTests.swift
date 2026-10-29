@@ -97,6 +97,7 @@ final class ExtensionRenderingTests: XCTestCase {
         assertRenders("[TOC]\n\n# Alpha\n\n## Beta\n\n# Gamma",
                       contains: ["<nav class=\"qm-toc\">", "href=\"#alpha\"", "href=\"#beta\"", "href=\"#gamma\""])
         assertRenders("[[_TOC_]]\n\n# One", contains: ["href=\"#one\""])
+        assertRenders("[TOC]\n\n# Ship it :rocket:", contains: [">Ship it 🚀</a>"])
     }
 
     func testCustomHeadingID() {
@@ -107,6 +108,7 @@ final class ExtensionRenderingTests: XCTestCase {
     func testFrontMatterTable() {
         assertRenders("---\ntitle: Hello\ntags:\n  - a\n  - b\n---\n# Body",
                       contains: ["qm-front-matter", "<th>title</th>", "<td>Hello</td>", "<td>a, b</td>", "Body</h1>"])
+        assertRenders("---\ntags: [one, \"two\"]\n---\nText", contains: ["<td>one, two</td>"])
     }
 
     // MARK: Links and images

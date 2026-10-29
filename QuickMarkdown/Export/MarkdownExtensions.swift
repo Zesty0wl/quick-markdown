@@ -72,6 +72,13 @@ enum MarkdownExtensions {
     }
 
     private static func unquote(_ value: String) -> String {
+        // A flow list (`[a, "b"]`) reads like a block list: comma-joined.
+        if value.hasPrefix("["), value.hasSuffix("]") {
+            return value.dropFirst().dropLast()
+                .split(separator: ",")
+                .map { unquote($0.trimmingCharacters(in: .whitespaces)) }
+                .joined(separator: ", ")
+        }
         if value.count >= 2, let first = value.first, let last = value.last,
            (first == "\"" && last == "\"") || (first == "'" && last == "'") {
             return String(value.dropFirst().dropLast())

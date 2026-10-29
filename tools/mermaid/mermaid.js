@@ -10,8 +10,12 @@
 // `renderAll` queues repeat runs instead of returning the first one, so a
 // page updated in place can render newly added diagrams, and failed blocks
 // are marked so a repeat run doesn't add a second error message.
+// Pie charts use GitHub's palette (`themeVariables`).
 import mermaid from 'mermaid'
 import './mermaid.css'
+
+const PIE_DARK = { pie1: "#58a6ff", pie2: "#bc8cff", pie3: "#3fb950", pie4: "#d29922", pie5: "#f778ba", pie6: "#39c5cf", pie7: "#ff7b72", pie8: "#a5d6ff", pieSectionTextColor: "#0d1117", pieStrokeColor: "#0d1117", pieOuterStrokeColor: "#0d1117", pieOpacity: "1", pieLegendTextColor: "#e6edf3", pieTitleTextColor: "#e6edf3" }
+const PIE_LIGHT = { pie1: "#0969da", pie2: "#8250df", pie3: "#1a7f37", pie4: "#bf8700", pie5: "#bf3989", pie6: "#1b7c83", pie7: "#cf222e", pie8: "#54aeff", pieSectionTextColor: "#ffffff", pieStrokeColor: "#ffffff", pieOuterStrokeColor: "#ffffff", pieOpacity: "1", pieLegendTextColor: "#1f2328", pieTitleTextColor: "#1f2328" }
 
 let nextDiagramID = 0
 let rendering = null
@@ -27,6 +31,9 @@ async function renderDiagrams({ dark = false } = {}) {
     securityLevel: 'strict',
     suppressErrorRendering: true,
     theme: dark ? 'dark' : 'neutral',
+    // Both themes derive pie slices from near-grey base colours; use
+    // GitHub's palette so slices are distinct.
+    themeVariables: dark ? PIE_DARK : PIE_LIGHT,
     fontFamily: '-apple-system, BlinkMacSystemFont, Helvetica, sans-serif',
     maxTextSize: 50000,
     maxEdges: 500,

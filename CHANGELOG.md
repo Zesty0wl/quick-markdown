@@ -10,6 +10,22 @@ https://semver.org/spec/v2.0.0.html
 
 ## Unreleased
 
+### Added
+
+- **`<kbd>` keys are styled** as keycaps in the Preview.
+- README screenshots of the new rendering, taken from the documents in
+  `media/showcase`.
+
+### Fixed
+
+- **Mermaid pie charts use distinct colours.** Both themes drew slices in
+  near-identical greys (almost black on dark themes); pies now use GitHub's
+  palette.
+- **Emoji shortcodes in headings show as emoji in a `[TOC]`**, not as
+  `:sparkles:`.
+- **Front matter flow lists** (`tags: [a, b]`) show as `a, b`, like block
+  lists, instead of with brackets.
+
 ## 1.0.10 - 2026-10-28
 
 ### Added

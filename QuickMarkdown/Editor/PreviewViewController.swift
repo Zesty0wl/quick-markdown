@@ -380,6 +380,8 @@ final class PreviewViewController: NSViewController {
         details.qm-alert:not([open]) > summary { margin-bottom: 0; }
         /* ==Highlight== */
         mark { background: \(theme.prefersDark ? "rgba(255, 214, 10, 0.35)" : "#fff3a3"); color: inherit; border-radius: 2px; padding: 0 1px; }
+        /* <kbd> keys */
+        kbd { display: inline-block; font: 0.8em ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.4; padding: 1px 6px; color: inherit; background: \(codeBg); border: 1px solid \(borderClr); border-bottom-width: 2px; border-radius: 5px; vertical-align: 0.1em; }
         /* Definition lists */
         dl { margin: 0 0 16px; }
         dt { font-weight: 600; margin-top: 12px; }

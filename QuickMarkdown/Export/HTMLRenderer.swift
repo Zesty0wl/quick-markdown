@@ -346,7 +346,7 @@ struct HTMLRenderer: MarkupVisitor {
                 }
             }
             current = depth
-            out += "<li style=\"\(liCSS)\"><a href=\"#\(Self.escapeAttr(Self.normalizeURL(entry.slug)))\" style=\"color:#0066cc;text-decoration:none;\">\(Self.escape(entry.text))</a>"
+            out += "<li style=\"\(liCSS)\"><a href=\"#\(Self.escapeAttr(Self.normalizeURL(entry.slug)))\" style=\"color:#0066cc;text-decoration:none;\">\(Self.replacingEmoji(in: Self.escape(entry.text)))</a>"
         }
         out += "</li>"
         for _ in 0..<current { out += "</ul></li>" }
