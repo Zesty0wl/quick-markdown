@@ -33,7 +33,7 @@ interface Release {
   notarized: boolean;
 }
 
-const latest: Release = { version: "1.0.10", notarized: true };
+const latest: Release = { version: "1.0.11", notarized: true };
 ```
 
 ```diff

@@ -10,11 +10,13 @@ https://semver.org/spec/v2.0.0.html
 
 ## Unreleased
 
+## 1.0.11 - 2026-10-29
+
 ### Added
 
 - **`<kbd>` keys are styled** as keycaps in the Preview.
 - README screenshots of the new rendering, taken from the documents in
-  `media/showcase`.
+  `media/showcase`, and a refreshed theme gallery.
 
 ### Fixed
 
@@ -25,6 +27,11 @@ https://semver.org/spec/v2.0.0.html
   `:sparkles:`.
 - **Front matter flow lists** (`tags: [a, b]`) show as `a, b`, like block
   lists, instead of with brackets.
+- **Keyboard shortcuts in the README, the welcome document and
+  CONTRIBUTING.md now match the menus**: Toggle Preview / Source is ⌥⌘P
+  (not ⇧⌘P or ⌘⇧S, which is Save As), Read Aloud is ⌥⌘. and Export as
+  PDF is ⇧⌘E.
+- Bumped `MARKETING_VERSION` to 1.0.11 and `CURRENT_PROJECT_VERSION` to 13.
 
 ## 1.0.10 - 2026-10-28
 

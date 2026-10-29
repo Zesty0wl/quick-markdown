@@ -320,7 +320,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
         applyWindowMode(next)
     }
 
-    /// Menu action (`View > Toggle Preview / Source`, ⌘⇧P). Flips between the
+    /// Menu action (`View > Toggle Preview / Source`, ⌥⌘P). Flips between the
     /// two top-level window modes.
     @objc func toggleWindowMode(_ sender: Any?) {
         applyWindowMode(currentMode == .preview ? .source : .preview)

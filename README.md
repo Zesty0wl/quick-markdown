@@ -74,8 +74,8 @@ Everything GitHub renders, and the extras people actually use, all offline. Each
 |---|---|---|---|
 | Open file | `⌘O` | Copy as rich text | `⇧⌘C` |
 | New file | `⌘N` | Export PDF | `⇧⌘E` |
-| Save | `⌘S` | Read aloud | `⌥⌘R` |
-| Toggle Preview / Source | `⇧⌘P` | Bold / Italic / Code | `⌘B` / `⌘I` / `⌘E` |
+| Save | `⌘S` | Read aloud | `⌥⌘.` |
+| Toggle Preview / Source | `⌥⌘P` | Bold / Italic / Code | `⌘B` / `⌘I` / `⌘E` |
 | Heading 1 / 2 / 3 | `⌥⌘1` / `⌥⌘2` / `⌥⌘3` | Link | `⌘K` |
 | Insert Code Block | `⇧⌘K` | Insert Table | `⌥⌘T` |
 | Realign Tables | `⌃⌥⌘T` | Toggle Task | `⇧⌘T` |

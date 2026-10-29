@@ -22,17 +22,17 @@ That's the whole pitch.
 | Feature | Shortcut | Notes |
 | :--- | :---: | :--- |
 | Live preview as the file changes | — | `tail -f`, but for prose |
-| Toggle source ⇆ preview | `⌘⇧S` | Scroll position survives |
+| Toggle source ⇆ preview | `⌥⌘P` | Scroll position survives |
 | Copy as rich text | `⇧⌘C` | Word, Outlook, Notion — all fine |
-| Read aloud | `⌥⌘R` | The good Apple voices |
-| Export to PDF | `⌘P` | Print-ready, paginated |
+| Read aloud | `⌥⌘.` | The good Apple voices |
+| Export to PDF | `⇧⌘E` | Print-ready, paginated |
 
 ## Try it now
 
 - [x] Open this file in Quick Markdown
 - [x] Notice the SVG banner above renders crisply at any zoom
 - [ ] **Click this checkbox** — it flips in both preview *and* source
-- [ ] Press `⌘⇧S` to flip to the raw source view
+- [ ] Press `⌥⌘P` to flip to the raw source view
 - [ ] Press `⇧⌘C`, then paste into Mail — formatting survives the trip
 - [ ] Drag another `.md` file onto this window to open it in a new one
 
@@ -65,7 +65,9 @@ formatter shortcuts (`⌘B`, `⌘I`, `⌘E`) are already in your fingers.
 
 When you're done here, [`02-the-kitchen-sink.md`](02-the-kitchen-sink.md)
 exercises every block and inline construct the renderer is supposed to
-handle, all in one file.
+handle, all in one file. [`03-mermaid.md`](03-mermaid.md) draws diagrams,
+and [`04-extensions.md`](04-extensions.md) tours callouts, maths and the
+other extras.
 
 [^count]: This number is made up. The real number is probably higher,
     but no-one has the energy to count.

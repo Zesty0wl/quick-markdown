@@ -91,7 +91,7 @@ Manually, at minimum, before opening a PR:
 1. **Build clean:** `xcodebuild -scheme QuickMarkdown -configuration Debug clean build` succeeds with no new warnings.
 2. **Open a `.md` file** from Finder via *Open With → Quick Markdown*.
 3. **Edit, save, close** without crashes; dirty dot appears and clears correctly.
-4. **Toggle Preview / Source** (⇧⌘P) — the cursor position is preserved.
+4. **Toggle Preview / Source** (⌥⌘P) — the cursor position is preserved.
 5. **Copy Formatted** (⇧⌘C) and paste into Outlook/Mail/TextEdit — formatting survives.
 6. **External edit:** open the file in another editor, save, watch Quick Markdown reload (or show the banner if you have dirty edits).
 
